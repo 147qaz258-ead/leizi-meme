@@ -1,0 +1,3039 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<title>造梗局 · MemeLab 高保真原型</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="https://unpkg.com/react@18.3.1/umd/react.development.js" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/react-dom@18.3.1/umd/react-dom.development.js" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/@babel/standalone@7.29.0/babel.min.js" crossorigin="anonymous"></script>
+<style>
+:root {
+  --bg-primary: #FFFFFF;
+  --bg-secondary: #F5F5F5;
+  --text-primary: #1A1A1A;
+  --text-secondary: #888888;
+  --text-tertiary: #AAAAAA;
+  --border: #EDEDED;
+
+  --purple: #7B5EA7;
+  --purple-light: #F0EBFA;
+  --red: #E5534B;
+  --green: #52C17A;
+  --blue: #4A8FE7;
+  --amber: #F5A623;
+
+  --radius-s: 10px;
+  --radius-m: 16px;
+  --radius-l: 20px;
+  --radius-xl: 28px;
+  --radius-pill: 999px;
+
+  --shadow-card: 0 2px 8px rgba(0,0,0,0.06), 0 0 0 1px rgba(0,0,0,0.04);
+  --shadow-card-hover: 0 6px 20px rgba(0,0,0,0.10);
+  --shadow-float: 0 16px 48px rgba(0,0,0,0.16);
+  --shadow-purple: 0 8px 20px rgba(123,94,167,0.25);
+
+  --font-cn: "PingFang SC", "HarmonyOS Sans SC", "Noto Sans SC", sans-serif;
+  --font-num: "SF Pro Rounded", "DIN Alternate", system-ui, sans-serif;
+
+  --ease-standard: cubic-bezier(0.34, 1.56, 0.64, 1);
+  --ease-spring: cubic-bezier(0.32, 1.25, 0.42, 1);
+  --ease-in: cubic-bezier(0.32, 0.72, 0, 1);
+}
+
+* { box-sizing: border-box; }
+html, body {
+  margin: 0; padding: 0;
+  font-family: var(--font-cn);
+  background: #E9E9EE;
+  color: var(--text-primary);
+  -webkit-font-smoothing: antialiased;
+}
+button { font-family: inherit; cursor: pointer; border: none; background: none; padding: 0; color: inherit; }
+
+.grad-border {
+  position: relative;
+  background: #fff;
+  border-radius: var(--radius-l);
+}
+.grad-border::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  padding: 2px;
+  border-radius: inherit;
+  background: linear-gradient(135deg, #9B6FD4, #5A3E8A);
+  -webkit-mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+  -webkit-mask-composite: xor;
+  mask-composite: exclude;
+  pointer-events: none;
+}
+.grad-border.red::before   { background: linear-gradient(135deg, #F07070, #C0392B); }
+.grad-border.blue::before  { background: linear-gradient(135deg, #6AB4F5, #2E6FCC); }
+.grad-border.green::before { background: linear-gradient(135deg, #7DDDA0, #2E9E59); }
+.grad-border.amber::before { background: linear-gradient(135deg, #FFD28A, #E0821C); }
+
+@keyframes spin { from { transform: rotate(0); } to { transform: rotate(360deg); } }
+.spin-text { animation: spin 14s linear infinite; }
+
+@keyframes typing {
+  0%, 80%, 100% { opacity: 0.2; transform: translateY(0); }
+  40% { opacity: 1; transform: translateY(-3px); }
+}
+.typing-dot {
+  width: 6px; height: 6px; border-radius: 50%; background: #7B5EA7;
+  display: inline-block; animation: typing 1.2s infinite;
+}
+.typing-dot:nth-child(2) { animation-delay: 0.15s; }
+.typing-dot:nth-child(3) { animation-delay: 0.3s; }
+
+@keyframes shimmer { 0% { background-position: -200px 0; } 100% { background-position: 200px 0; } }
+.skeleton {
+  background: linear-gradient(90deg, #F0F0F0, #E5E5E5, #F0F0F0);
+  background-size: 400px 100%;
+  animation: shimmer 1.4s infinite linear;
+}
+
+@keyframes pop-in {
+  from { opacity: 0; transform: scale(0.9) translateY(8px); }
+  to   { opacity: 1; transform: scale(1) translateY(0); }
+}
+.pop-in { animation: pop-in 260ms var(--ease-standard) both; }
+
+@keyframes slide-up {
+  from { transform: translateY(100%); }
+  to   { transform: translateY(0); }
+}
+.slide-up { animation: slide-up 340ms var(--ease-spring) both; }
+
+@keyframes fade-in {
+  from { opacity: 0; } to { opacity: 1; }
+}
+.fade-in { animation: fade-in 220ms ease both; }
+
+.no-scroll::-webkit-scrollbar { display: none; }
+.no-scroll { scrollbar-width: none; -ms-overflow-style: none; }
+
+.meme-placeholder {
+  position: relative;
+  background: repeating-linear-gradient(45deg, #F5F3EE, #F5F3EE 10px, #EBE8E0 10px, #EBE8E0 20px);
+  color: #6b6254;
+  font-family: "SF Mono", ui-monospace, monospace;
+  font-size: 11px;
+  display: flex; align-items: center; justify-content: center;
+  padding: 16px;
+  overflow: hidden;
+}
+.meme-placeholder .tag {
+  background: rgba(255,255,255,0.9);
+  padding: 4px 10px;
+  border-radius: 4px;
+  text-align: center;
+  line-height: 1.4;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.06);
+}
+
+@keyframes bob {
+  0%, 100% { transform: translateY(0) rotate(-2deg); }
+  50% { transform: translateY(-6px) rotate(2deg); }
+}
+.bob { animation: bob 3s ease-in-out infinite; }
+
+@keyframes float-up {
+  0% { opacity: 0; transform: translateY(0) scale(0.6); }
+  20% { opacity: 1; }
+  100% { opacity: 0; transform: translateY(-40px) scale(1.1); }
+}
+.float-up { animation: float-up 1.2s ease-out forwards; }
+
+.tab-pill {
+  background: #1A1A1A;
+  color: white;
+  border-radius: 999px;
+  padding: 8px 16px;
+  display: flex; align-items: center; gap: 6px;
+  font-weight: 600;
+  font-size: 13px;
+  transition: all 0.25s var(--ease-standard);
+}
+
+.no-select { user-select: none; -webkit-user-select: none; }
+</style>
+</head>
+<body>
+
+<div id="root"></div>
+
+<script>
+(function () {
+  const API_ORIGIN = window.location.protocol === 'file:' ? 'http://127.0.0.1:8765' : window.location.origin;
+  const kingReplies = [
+    '那咋了 🫠 累就累了，打工人的尊严不就是一瓶肥宅快乐水吗',
+    '班味浓到能腌菜了家人们 🥬 建议下班对着天花板骂三分钟再睡',
+    '啊这 我给你扬了 💀 class is class 你能咋办',
+    'city不city啊？你这日子过得 特别不city',
+    '哈基米～哈基米～ 南北绿豆 豆豆冰 🍯 整一杯 续命',
+    '孤勇者本勇 早八赶地铁 照样光里发光 ⚔️',
+  ];
+  const dialectReplies = [
+    '嘎嘎累是吧？那咋地 老铁这班上的跟三班倒似的 整口儿吧！',
+    '哎妈呀 这班上得跟大棚种菜似的 走 老铁 撸串去！',
+    '整点儿活儿呗 老铁 这玩意儿有啥好愁的 🧊',
+    '唠嗑啊兄弟 这日子过得跟过年似的 顿顿都是硬菜',
+  ];
+  const classicalReplies = [
+    '劳则怨，怨则躺，躺则愈累。此乃"班味"之循环，古已有之，无解也 🍃',
+    '子曰：朝九晚十，非人哉！卿可效法陶令，不为五斗米折腰，然五斗米实在香 💰',
+    '诸君莫愁，班者，搬也；薪者，辛也。古之打工，今之吾辈，皆然 📜',
+  ];
+  const memeComments = [
+    '这不就我的日常.jpg',
+    '那咋了 🫠 班味就这味儿',
+    '家人们谁懂啊 💀',
+    '打工人的精神状态.gif',
+    '孤勇者本勇路过',
+    'city不city我不好说',
+  ];
+  const genLines = [
+    '那咋了 🫠',
+    '班味浓郁 建议冷冻',
+    '家人们 谁懂啊 💀',
+    '吗喽的命也是命',
+    '哈基米 续一秒',
+    '周五请假专业户',
+    '上班上成电子民工',
+    '精神离职进行时',
+  ];
+
+  function pick(arr, n) {
+    const pool = arr.slice().sort(() => Math.random() - 0.5);
+    return pool.slice(0, n);
+  }
+
+  function isClassical(p) { return /文言|子曰|之乎/.test(p); }
+  function isDialect(p) { return /东北|老铁|嘎嘎|整活/.test(p); }
+
+  async function mockComplete(prompt) {
+    await new Promise(r => setTimeout(r, 400 + Math.random() * 300));
+    if (/评分|JSON|grade/i.test(prompt)) {
+      const grades = ['A+', 'A', 'A', 'B', 'B', 'C'];
+      const g = grades[Math.floor(Math.random() * grades.length)];
+      const rand = (lo, hi) => Math.round(lo + Math.random() * (hi - lo));
+      const baseLo = g === 'A+' ? 85 : g === 'A' ? 75 : g === 'B' ? 60 : 40;
+      const baseHi = g === 'A+' ? 99 : g === 'A' ? 90 : g === 'B' ? 80 : 65;
+      const comments = {
+        'A+': '绝了 这梗我吞了',
+        'A': '梗味够浓 下次还来',
+        'B': '差点意思 再发酵一下',
+        'C': '这梗凉了 回去再炼',
+      };
+      return JSON.stringify({
+        grade: g,
+        humor: rand(baseLo, baseHi),
+        contrast: rand(baseLo, baseHi),
+        fit: rand(baseLo, baseHi),
+        comment: comments[g],
+      });
+    }
+    if (/回评|3个|三个|每句|梗图文案/.test(prompt)) {
+      return pick(memeComments.concat(genLines), 3).join('\n');
+    }
+    let pool = kingReplies;
+    if (isDialect(prompt)) pool = dialectReplies;
+    else if (isClassical(prompt)) pool = classicalReplies;
+    return pool[Math.floor(Math.random() * pool.length)];
+  }
+
+  async function request(path, options = {}) {
+    const headers = { 'Content-Type': 'application/json', ...(options.headers || {}) };
+    const res = await fetch(API_ORIGIN + path, { ...options, headers });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) throw new Error(data.error || ('HTTP ' + res.status));
+    return data;
+  }
+
+  function assetUrl(path) {
+    if (!path) return '';
+    if (/^(data:|https?:)/i.test(path)) return path;
+    // Support non-ascii filenames (e.g. 微信图片_*.jpg) without breaking static file serving.
+    return API_ORIGIN + encodeURI(path);
+  }
+
+  window.MockClaude = { complete: mockComplete };
+  window.claude = { complete: mockComplete };
+  window.MemeLabAPI = {
+    origin: API_ORIGIN,
+    assetUrl,
+    getBootstrap() { return request('/api/bootstrap', { method: 'GET' }); },
+    getPosts(tag, view = 'all') {
+      const params = new URLSearchParams();
+      if (tag && tag !== 'all') params.set('tag', tag);
+      if (view && view !== 'all') params.set('view', view);
+      const qs = params.toString() ? ('?' + params.toString()) : '';
+      return request('/api/posts' + qs, { method: 'GET' });
+    },
+    getMyProfile() { return request('/api/users/me/profile', { method: 'GET' }); },
+    getUserProfile(userId) { return request('/api/users/' + encodeURIComponent(userId) + '/profile', { method: 'GET' }); },
+    toggleFollow(userId) { return request('/api/users/' + encodeURIComponent(userId) + '/follow', { method: 'POST', body: '{}' }); },
+    getHotComments(limit = 12) { return request('/api/hot-comments?limit=' + encodeURIComponent(limit), { method: 'GET' }); },
+    sendChat(payload) { return request('/api/chat/reply', { method: 'POST', body: JSON.stringify(payload) }); },
+    laughPost(postId) { return request('/api/posts/' + postId + '/laugh', { method: 'POST', body: '{}' }); },
+    favoritePost(postId) { return request('/api/posts/' + postId + '/favorite', { method: 'POST', body: '{}' }); },
+    explainMeme(text) { return request('/api/chat/explain', { method: 'POST', body: JSON.stringify({ text }) }); },
+    getComments(postId) { return request('/api/posts/' + postId + '/comments', { method: 'GET' }); },
+    getCommentSuggestions(postId) { return request('/api/posts/' + postId + '/comments/suggestions', { method: 'POST', body: '{}' }); },
+    postComment(postId, text) { return request('/api/posts/' + postId + '/comments', { method: 'POST', body: JSON.stringify({ text }) }); },
+    generate(payload) { return request('/api/generate', { method: 'POST', body: JSON.stringify(payload) }); },
+    critiqueMeme(memeId) { return request('/api/generate/' + memeId + '/critique', { method: 'POST', body: '{}' }); },
+    publishMeme(memeId) { return request('/api/generate/' + memeId + '/publish', { method: 'POST', body: '{}' }); },
+    shareMeme(memeId) { return request('/api/generate/' + memeId + '/share', { method: 'POST', body: '{}' }); },
+    getGameLevels() { return request('/api/game/levels', { method: 'GET' }); },
+    scoreGame(payload) { return request('/api/game/score', { method: 'POST', body: JSON.stringify(payload) }); },
+  };
+})();
+</script>
+
+<script type="text/babel" data-presets="react">
+// ========== ios-frame.jsx ==========
+function IOSStatusBar({ dark = false, time = '9:41' }) {
+  const c = dark ? '#fff' : '#000';
+  return (
+    <div style={{
+      display: 'flex', gap: 154, alignItems: 'center', justifyContent: 'center',
+      padding: '21px 24px 19px', boxSizing: 'border-box',
+      position: 'relative', zIndex: 20, width: '100%',
+    }}>
+      <div style={{ flex: 1, height: 22, display: 'flex', alignItems: 'center', justifyContent: 'center', paddingTop: 1.5 }}>
+        <span style={{
+          fontFamily: '-apple-system, "SF Pro", system-ui', fontWeight: 590,
+          fontSize: 17, lineHeight: '22px', color: c,
+        }}>{time}</span>
+      </div>
+      <div style={{ flex: 1, height: 22, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 7, paddingTop: 1, paddingRight: 1 }}>
+        <svg width="19" height="12" viewBox="0 0 19 12">
+          <rect x="0" y="7.5" width="3.2" height="4.5" rx="0.7" fill={c}/>
+          <rect x="4.8" y="5" width="3.2" height="7" rx="0.7" fill={c}/>
+          <rect x="9.6" y="2.5" width="3.2" height="9.5" rx="0.7" fill={c}/>
+          <rect x="14.4" y="0" width="3.2" height="12" rx="0.7" fill={c}/>
+        </svg>
+        <svg width="17" height="12" viewBox="0 0 17 12">
+          <path d="M8.5 3.2C10.8 3.2 12.9 4.1 14.4 5.6L15.5 4.5C13.7 2.7 11.2 1.5 8.5 1.5C5.8 1.5 3.3 2.7 1.5 4.5L2.6 5.6C4.1 4.1 6.2 3.2 8.5 3.2Z" fill={c}/>
+          <path d="M8.5 6.8C9.9 6.8 11.1 7.3 12 8.2L13.1 7.1C11.8 5.9 10.2 5.1 8.5 5.1C6.8 5.1 5.2 5.9 3.9 7.1L5 8.2C5.9 7.3 7.1 6.8 8.5 6.8Z" fill={c}/>
+          <circle cx="8.5" cy="10.5" r="1.5" fill={c}/>
+        </svg>
+        <svg width="27" height="13" viewBox="0 0 27 13">
+          <rect x="0.5" y="0.5" width="23" height="12" rx="3.5" stroke={c} strokeOpacity="0.35" fill="none"/>
+          <rect x="2" y="2" width="20" height="9" rx="2" fill={c}/>
+          <path d="M25 4.5V8.5C25.8 8.2 26.5 7.2 26.5 6.5C26.5 5.8 25.8 4.8 25 4.5Z" fill={c} fillOpacity="0.4"/>
+        </svg>
+      </div>
+    </div>
+  );
+}
+
+function IOSDevice({ children, width = 402, height = 874, dark = false }) {
+  return (
+    <div style={{
+      width, height, borderRadius: 48, overflow: 'hidden',
+      position: 'relative', background: dark ? '#000' : '#F2F2F7',
+      boxShadow: '0 40px 80px rgba(0,0,0,0.18), 0 0 0 1px rgba(0,0,0,0.12)',
+      fontFamily: '-apple-system, system-ui, sans-serif',
+      WebkitFontSmoothing: 'antialiased',
+    }}>
+      <div style={{
+        position: 'absolute', top: 11, left: '50%', transform: 'translateX(-50%)',
+        width: 126, height: 37, borderRadius: 24, background: '#000', zIndex: 50,
+      }} />
+      <div style={{ position: 'absolute', top: 0, left: 0, right: 0, zIndex: 10 }}>
+        <IOSStatusBar dark={dark} />
+      </div>
+      <div style={{ height: '100%', display: 'flex', flexDirection: 'column' }}>
+        <div style={{ flex: 1, overflow: 'auto' }}>{children}</div>
+      </div>
+      <div style={{
+        position: 'absolute', bottom: 0, left: 0, right: 0, zIndex: 60,
+        height: 34, display: 'flex', justifyContent: 'center', alignItems: 'flex-end',
+        paddingBottom: 8, pointerEvents: 'none',
+      }}>
+        <div style={{
+          width: 139, height: 5, borderRadius: 100,
+          background: dark ? 'rgba(255,255,255,0.7)' : 'rgba(0,0,0,0.25)',
+        }} />
+      </div>
+    </div>
+  );
+}
+
+// ========== data.jsx ==========
+const SEED_POSTS = [
+  { id: 'p1', author: '班味十足', avatar: '😮‍💨', level: '🥇 黄金梗师',
+    tag: '🔥 今日热梗', time: '12m前',
+    caption: '老板周五六点在群里说"辛苦大家"的时候，我',
+    memeLabel: '狗头保命.jpg\n[表情包：柴犬歪头]',
+    bg: '#FDE6D9', accent: 'red',
+    stats: { laugh: 234, comments: 18, shares: 41 }, template: '狗头保命' },
+  { id: 'p2', author: '那咋了本了', avatar: '🫠', level: '💠 钻石梗王',
+    tag: '🔥 今日热梗', time: '1h前',
+    caption: '妈：你看看人家孩子\n我：那咋了',
+    memeLabel: '那咋了.jpg\n[东北老大爷表情]',
+    bg: '#E8F4FD', accent: 'blue',
+    stats: { laugh: 1820, comments: 103, shares: 289 }, template: '那咋了' },
+  { id: 'p3', author: 'city不city', avatar: '🧳', level: '🥇 黄金梗师',
+    tag: '🔥 今日热梗', time: '3h前',
+    caption: '上海？city不city啊？\n————友情提醒：浦东很city，地铁13号线不太city',
+    memeLabel: '[金发外国美女 戴墨镜 比耶]',
+    bg: '#E5F7EC', accent: 'green',
+    stats: { laugh: 892, comments: 56, shares: 134 }, template: 'city不city' },
+  { id: 'p4', author: '孤勇者本者', avatar: '⚔️', level: '💎 铂金梗将',
+    tag: '💀 考古老梗', time: '5h前',
+    caption: '谁说站在光里的才算英雄\n————周一早八赶地铁的打工人',
+    memeLabel: '[黑白剪影 打工人背影]',
+    bg: '#EEE9F8', accent: 'purple',
+    stats: { laugh: 567, comments: 28, shares: 88 }, template: '孤勇者' },
+  { id: 'p5', author: '职场MBTI', avatar: '📋', level: '🥈 白银梗手',
+    tag: '🌱 冷门好梗', time: '6h前',
+    caption: '领导：这个你先做着\n我（I人）：好的 🙂\n我（内心）：这啥玩意儿',
+    memeLabel: '[I人表面平静内心咆哮]',
+    bg: '#FCF0E0', accent: 'amber',
+    stats: { laugh: 421, comments: 35, shares: 52 }, template: '表里不一' },
+  { id: 'p6', author: '早八怨种', avatar: '🥲', level: '🥇 黄金梗师',
+    tag: '🔥 今日热梗', time: '8h前',
+    caption: '闹钟响的那一刻\n我的灵魂：已离开躯壳',
+    memeLabel: '[悲伤蛙 Pepe 躺平]',
+    bg: '#E5F7EC', accent: 'green',
+    stats: { laugh: 733, comments: 49, shares: 95 }, template: '悲伤蛙' },
+  { id: 'p7', author: '发疯文学家', avatar: '🤪', level: '💠 钻石梗王',
+    tag: '🔥 今日热梗', time: '10h前',
+    caption: '啊啊啊啊啊我不想上班啊啊啊谁懂啊家人们',
+    memeLabel: '[猫猫崩溃 爪子抱头]',
+    bg: '#FDE6D9', accent: 'red',
+    stats: { laugh: 2340, comments: 187, shares: 412 }, template: '发疯文学' },
+  { id: 'p8', author: '特种兵旅游', avatar: '🎒', level: '🥇 黄金梗师',
+    tag: '🌱 冷门好梗', time: '12h前',
+    caption: '48小时6个城市12个景点\n回来请了3天病假',
+    memeLabel: '[地图 + 红色路线 + 大哭]',
+    bg: '#E8F4FD', accent: 'blue',
+    stats: { laugh: 389, comments: 22, shares: 41 }, template: '特种兵' },
+  { id: 'p9', author: '吗喽打工', avatar: '🐒', level: '🥈 白银梗手',
+    tag: '🔥 今日热梗', time: '14h前',
+    caption: '一只吗喽站在工位上\n它没有明天，只有KPI',
+    memeLabel: '[猴子戴领带 电脑前]',
+    bg: '#FCF0E0', accent: 'amber',
+    stats: { laugh: 612, comments: 44, shares: 73 }, template: '吗喽' },
+  { id: 'p10', author: '哈基米', avatar: '🍯', level: '🥇 黄金梗师',
+    tag: '🔥 今日热梗', time: '18h前',
+    caption: '哈基米～哈基米～\n南北绿豆～豆豆冰',
+    memeLabel: '[可爱水豚 戴花]',
+    bg: '#EEE9F8', accent: 'purple',
+    stats: { laugh: 1045, comments: 78, shares: 201 }, template: '哈基米' },
+  { id: 'p11', author: 'class is class', avatar: '🎓', level: '🥈 白银梗手',
+    tag: '💀 考古老梗', time: '1d前',
+    caption: 'Why？\n别问 问就是 class is class',
+    memeLabel: '[学生崩溃 撕书]',
+    bg: '#FDE6D9', accent: 'red',
+    stats: { laugh: 287, comments: 15, shares: 34 }, template: 'class is class' },
+  { id: 'p12', author: '主理人', avatar: '☕', level: '💎 铂金梗将',
+    tag: '🌱 冷门好梗', time: '1d前',
+    caption: '我不是老板，我是主理人\n（店里就我一个人）',
+    memeLabel: '[咖啡师独自站柜台]',
+    bg: '#E5F7EC', accent: 'green',
+    stats: { laugh: 498, comments: 37, shares: 61 }, template: '主理人' },
+];
+
+const PERSONAS = {
+  default: {
+    key: 'default', name: '梗王', subtitle: '不会造梗？我教你啊',
+    greeting: '我是梗王，问就是 class is class，来整活儿啊',
+    style: '互联网热梗、emoji混搭、年轻人口吻',
+    samples: [
+      { user: '今天好累', bot: '那咋了 🫠 累了就累了，打工人的尊严不就是一瓶肥宅快乐水吗' },
+      { user: '加班到十点', bot: '班味浓到能腌菜了家人们 🥬 建议：下班回家先对着天花板骂三分钟再睡' },
+    ],
+  },
+  dialect: {
+    key: 'dialect', name: '梗王·东北版', subtitle: '整点儿活儿呗 老铁',
+    greeting: '唠嗑啊兄弟！今儿咋地，给整点儿啥梗？',
+    style: '东北方言、老铁、嘎嘎、咋地、整活儿',
+    samples: [
+      { user: '今天好累', bot: '嘎嘎累是吧？那咋地 老铁这班上的跟三班倒似的 整一口儿吧！' },
+      { user: '加班到十点', bot: '哎妈呀 这班上得跟大棚种菜似的 走 老铁 撸串去！' },
+    ],
+  },
+  classical: {
+    key: 'classical', name: '梗王·文言版', subtitle: '诸君 且听朕道梗一则',
+    greeting: '吾乃梗王。尔有何惑？朕以古法解之。',
+    style: '文言文 + 现代梗，子曰体，之乎者也',
+    samples: [
+      { user: '今天好累', bot: '劳则怨，怨则躺，躺则愈累。此乃"班味"之循环，古已有之，无解也 🍃' },
+      { user: '加班到十点', bot: '子曰：朝九晚十，非人哉！卿可效法陶令，不为五斗米折腰，然五斗米实在香 💰' },
+    ],
+  },
+};
+
+const GEN_TEMPLATES = [
+  { name: '狗头保命', emoji: '🐶', accent: 'amber' },
+  { name: '那咋了', emoji: '🫠', accent: 'blue' },
+  { name: '悲伤蛙', emoji: '🐸', accent: 'green' },
+  { name: '震惊脸', emoji: '😱', accent: 'red' },
+  { name: '哈基米', emoji: '🍯', accent: 'amber' },
+  { name: '吗喽', emoji: '🐒', accent: 'purple' },
+];
+
+const GEN_STYLES = [
+  { key: 'cold', label: '冷漠系' },
+  { key: 'crazy', label: '癫狂系' },
+  { key: 'yy', label: '阴阳系' },
+  { key: 'cute', label: '可爱系' },
+];
+
+const GAME_LEVELS = [
+  { id: 1, setup: '星期一早上8点，地铁挤得像罐头', imagePrompt: '[悲伤蛙 被挤成饼]',
+    topAnswers: [
+      { text: '我不是在通勤，我是在被搬运', score: 'A', votes: 892 },
+      { text: '这不是上班，这是上供', score: 'A', votes: 734 },
+    ] },
+  { id: 2, setup: '妈妈打电话问你找对象了吗', imagePrompt: '[电话一响 浑身发抖]',
+    topAnswers: [
+      { text: '妈 我在谈 跟KPI谈', score: 'A+', votes: 1204 },
+      { text: '我不是单身 我是高纯度', score: 'A', votes: 889 },
+    ] },
+];
+
+// ========== ui-primitives.jsx ==========
+function DogeAvatar({ size = 120, expression = 'default' }) {
+  return (
+    <div style={{ position: 'relative', width: size, height: size }} className="no-select">
+      <svg viewBox="0 0 120 120" width={size} height={size}>
+        <path d="M22 30 L32 12 L42 32 Z" fill="#D98C3B"/>
+        <path d="M78 32 L88 12 L98 30 Z" fill="#D98C3B"/>
+        <path d="M26 28 L33 18 L40 30 Z" fill="#F5A65D"/>
+        <path d="M80 30 L87 18 L94 28 Z" fill="#F5A65D"/>
+        <ellipse cx="60" cy="62" rx="42" ry="40" fill="#E8A05C"/>
+        <ellipse cx="40" cy="72" rx="16" ry="14" fill="#FFF8EC"/>
+        <ellipse cx="80" cy="72" rx="16" ry="14" fill="#FFF8EC"/>
+        <ellipse cx="60" cy="78" rx="22" ry="12" fill="#FFF8EC"/>
+        <path d="M36 22 L44 10 L52 20 L60 6 L68 20 L76 10 L84 22 L84 30 L36 30 Z" fill="#F5C542" stroke="#B8860B" strokeWidth="1.5"/>
+        <circle cx="60" cy="15" r="2.5" fill="#E5534B"/>
+        <circle cx="44" cy="20" r="1.8" fill="#4A8FE7"/>
+        <circle cx="76" cy="20" r="1.8" fill="#52C17A"/>
+        <rect x="22" y="48" width="76" height="4" rx="2" fill="#1A1A1A"/>
+        <ellipse cx="40" cy="58" rx="15" ry="11" fill="#1A1A1A"/>
+        <ellipse cx="80" cy="58" rx="15" ry="11" fill="#1A1A1A"/>
+        <ellipse cx="36" cy="55" rx="4" ry="3" fill="#FFFFFF" opacity="0.5"/>
+        <ellipse cx="76" cy="55" rx="4" ry="3" fill="#FFFFFF" opacity="0.5"/>
+        <ellipse cx="60" cy="78" rx="4" ry="3" fill="#1A1A1A"/>
+        {expression === 'default' && (
+          <path d="M60 82 Q54 90 48 86 M60 82 Q66 90 72 86" stroke="#1A1A1A" strokeWidth="2.5" fill="none" strokeLinecap="round"/>
+        )}
+        {expression === 'smile' && (
+          <path d="M48 84 Q60 96 72 84" stroke="#1A1A1A" strokeWidth="2.5" fill="none" strokeLinecap="round"/>
+        )}
+        {expression === 'smirk' && (
+          <path d="M50 86 Q60 88 72 82" stroke="#1A1A1A" strokeWidth="2.5" fill="none" strokeLinecap="round"/>
+        )}
+        {expression === 'smile' && <ellipse cx="60" cy="91" rx="5" ry="3" fill="#E5534B"/>}
+      </svg>
+    </div>
+  );
+}
+
+function RotatingCTA({ text, centerEmoji = '▶', onClick, size = 120 }) {
+  const chars = (text + ' ').split('');
+  const N = chars.length;
+  const R = size / 2 - 8;
+  return (
+    <button
+      onClick={onClick}
+      style={{
+        position: 'relative', width: size, height: size, borderRadius: '50%',
+        border: '1.5px solid #E0E0E0', background: 'transparent',
+        transition: 'transform 120ms',
+      }}
+      onMouseDown={e => e.currentTarget.style.transform = 'scale(0.94)'}
+      onMouseUp={e => e.currentTarget.style.transform = 'scale(1)'}
+      onMouseLeave={e => e.currentTarget.style.transform = 'scale(1)'}
+      className="no-select"
+    >
+      <div className="spin-text" style={{ position: 'absolute', inset: 0, width: '100%', height: '100%' }}>
+        {chars.map((c, i) => {
+          const angle = (i / N) * 360;
+          return (
+            <span key={i} style={{
+              position: 'absolute', left: '50%', top: '50%',
+              transform: `translate(-50%, -50%) rotate(${angle}deg) translateY(-${R}px)`,
+              fontSize: 11, fontWeight: 700, letterSpacing: '0.5px',
+              color: '#888', textTransform: 'uppercase',
+            }}>{c}</span>
+          );
+        })}
+      </div>
+      <div style={{
+        position: 'absolute', left: '50%', top: '50%',
+        transform: 'translate(-50%, -50%)',
+        width: size * 0.66, height: size * 0.66, borderRadius: '50%',
+        background: '#fff',
+        boxShadow: '0 4px 14px rgba(0,0,0,0.08), 0 0 0 1px rgba(0,0,0,0.04)',
+        display: 'flex', alignItems: 'center', justifyContent: 'center',
+        fontSize: 28,
+      }}>{centerEmoji}</div>
+    </button>
+  );
+}
+
+function Badge({ children, accent = 'red', size = 'sm' }) {
+  const colors = {
+    red: { bg: '#FDE6E4', fg: '#C0392B' },
+    blue: { bg: '#E3EEFB', fg: '#2E6FCC' },
+    green: { bg: '#DFF4E7', fg: '#2E9E59' },
+    purple: { bg: '#EEE6FA', fg: '#5A3E8A' },
+    amber: { bg: '#FBECCF', fg: '#B8711C' },
+  };
+  const c = colors[accent] || colors.red;
+  return (
+    <span style={{
+      display: 'inline-flex', alignItems: 'center',
+      background: c.bg, color: c.fg,
+      fontSize: size === 'xs' ? 10 : 11, fontWeight: 700,
+      padding: '3px 8px', borderRadius: 999, letterSpacing: '0.3px',
+    }}>{children}</span>
+  );
+}
+
+function LevelTag({ level }) {
+  return (
+    <span style={{
+      fontSize: 10, fontWeight: 700,
+      padding: '2px 8px', borderRadius: 999,
+      background: '#F5F0E4', color: '#8B6914',
+      letterSpacing: '0.2px',
+    }}>{level}</span>
+  );
+}
+
+function MemePlaceholder({ label, aspect = '1/1', bg }) {
+  return (
+    <div className="meme-placeholder" style={{ aspectRatio: aspect, background: bg || undefined }}>
+      <div className="tag" style={{ whiteSpace: 'pre-line', maxWidth: '80%' }}>{label}</div>
+    </div>
+  );
+}
+
+function resolveAssetUrl(path) {
+  return window.MemeLabAPI ? window.MemeLabAPI.assetUrl(path) : path;
+}
+
+function MemeArtwork({ assetPath, dataUrl, label, aspect = '1/1', bg }) {
+  const src = resolveAssetUrl(assetPath || dataUrl);
+  if (!src) return <MemePlaceholder label={label} aspect={aspect} bg={bg}/>;
+  return (
+    <div style={{ aspectRatio: aspect, background: bg || '#F5F5F5', overflow: 'hidden' }}>
+      <img
+        src={src}
+        alt={label || 'meme'}
+        style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }}
+      />
+    </div>
+  );
+}
+
+function PointFloat({ n, show }) {
+  if (!show) return null;
+  return (
+    <div className="float-up" style={{
+      position: 'absolute', left: '50%', top: '50%',
+      transform: 'translateX(-50%)',
+      fontSize: 18, fontWeight: 800, color: '#F5A623',
+      pointerEvents: 'none', zIndex: 100,
+    }}>+{n} 梗值</div>
+  );
+}
+
+// ========== screen-king.jsx ==========
+function MemeKingHome({ persona, setPersona, onProfileSync, points, level }) {
+  const [messages, setMessages] = React.useState([
+    { role: 'bot', text: persona.greeting, id: 'init' },
+  ]);
+  const [input, setInput] = React.useState('');
+  const [typing, setTyping] = React.useState(false);
+  const [showPersonaSwitch, setShowPersonaSwitch] = React.useState(false);
+  const scrollRef = React.useRef(null);
+
+  React.useEffect(() => {
+    setMessages([{ role: 'bot', text: persona.greeting, id: 'p-' + persona.key }]);
+  }, [persona.key]);
+
+  React.useEffect(() => {
+    if (scrollRef.current) scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
+  }, [messages, typing]);
+
+  async function send(text) {
+    if (!text.trim()) return;
+    const uid = 'u' + Date.now();
+    setMessages(m => [...m, { role: 'user', text, id: uid }]);
+    setInput('');
+    setTyping(true);
+
+    let reply = '';
+    let replyMeta = null;
+    const started = Date.now();
+    try {
+      const response = await window.MemeLabAPI.sendChat({
+        personaKey: persona.key,
+        text,
+        history: messages.slice(-6).map(msg => ({ role: msg.role, text: msg.text })),
+      });
+      const elapsed = Date.now() - started;
+      const minTypingMs = 900;
+      if (elapsed < minTypingMs) await new Promise(r => setTimeout(r, minTypingMs - elapsed));
+      reply = (response.reply || '').trim().replace(/^梗王[：:]\s*/, '');
+      replyMeta = {
+        source: response.source || 'unknown',
+        model: response.model || '',
+        latencyMs: response.latencyMs || 0,
+      };
+      onProfileSync(response.profile, 5);
+    } catch (e) {
+      const samples = persona.samples.map(s => `用户：${s.user}\n梗王：${s.bot}`).join('\n\n');
+      const prompt = `你现在扮演"梗王"。性格：${persona.style}。\n参考样例：\n${samples}\n用户说：${text}\n梗王：`;
+      reply = await window.MockClaude.complete(prompt);
+      reply = (reply || '').trim().replace(/^梗王[：:]\s*/, '') || '这梗我给你扬了 💀';
+      replyMeta = { source: 'mock', model: 'local-mock', latencyMs: 0 };
+      onProfileSync(null, 5);
+    }
+    setTyping(false);
+    setMessages(m => [...m, { role: 'bot', text: reply || '那咋了 🫠', id: 'b' + Date.now(), meta: replyMeta }]);
+  }
+
+  const quickReplies = ['今天好累', '老板又PUA我', '帮我想一个周五下班的梗', '给我一个哈基米版本的早安'];
+
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', height: '100%', background: '#FAFAFB' }}>
+      <div style={{ padding: '8px 20px 12px' }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+          <div>
+            <div style={{ fontSize: 32, fontWeight: 900, letterSpacing: '-0.5px', lineHeight: 1.15 }}>
+              吾乃{persona.name}
+            </div>
+            <div style={{ fontSize: 13, color: 'var(--text-secondary)', marginTop: 4 }}>
+              {persona.subtitle}
+            </div>
+          </div>
+          <button onClick={() => setShowPersonaSwitch(true)} style={{
+            width: 40, height: 40, borderRadius: '50%',
+            background: '#F0F0F0', display: 'flex',
+            alignItems: 'center', justifyContent: 'center', fontSize: 18,
+          }}>🎭</button>
+        </div>
+      </div>
+
+      <div style={{ display: 'flex', alignItems: 'center', gap: 16, padding: '4px 20px 12px' }}>
+        <div className="bob" style={{ flexShrink: 0 }}>
+          <DogeAvatar size={88} expression="smirk"/>
+        </div>
+        <div className="grad-border" style={{ flex: 1, padding: '12px 14px' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+            <div>
+              <div style={{ fontSize: 11, color: '#888', fontWeight: 600 }}>今日梗值</div>
+              <div style={{ fontSize: 22, fontWeight: 800, color: 'var(--purple)', fontFamily: 'var(--font-num)' }}>
+                +{points}
+              </div>
+            </div>
+            <div style={{ textAlign: 'right' }}>
+              <div style={{ fontSize: 11, color: '#888', fontWeight: 600 }}>当前段位</div>
+              <div style={{ fontSize: 13, fontWeight: 700, marginTop: 2 }}>{level}</div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div ref={scrollRef} className="no-scroll" style={{
+        flex: 1, overflowY: 'auto', padding: '8px 16px 16px',
+        display: 'flex', flexDirection: 'column', gap: 12,
+      }}>
+        {messages.map(m => <MessageBubble key={m.id} msg={m} />)}
+        {typing && (
+          <div style={{ display: 'flex', alignItems: 'flex-end', gap: 8 }}>
+            <div style={{ width: 32, height: 32, flexShrink: 0 }}>
+              <DogeAvatar size={32} />
+            </div>
+            <div style={{
+              background: 'var(--purple-light)', padding: '12px 16px',
+              borderRadius: '16px 16px 16px 4px',
+              display: 'flex', gap: 4, alignItems: 'center',
+            }}>
+              <span className="typing-dot"/>
+              <span className="typing-dot"/>
+              <span className="typing-dot"/>
+            </div>
+          </div>
+        )}
+
+        {messages.length === 1 && !typing && (
+          <div style={{ marginTop: 8, display: 'flex', flexDirection: 'column', gap: 8 }}>
+            <div style={{ fontSize: 11, color: '#AAA', fontWeight: 600, letterSpacing: 0.3 }}>试试这么聊 👇</div>
+            {quickReplies.map((q, i) => (
+              <button key={i} onClick={() => send(q)} style={{
+                textAlign: 'left', padding: '10px 14px',
+                background: '#fff', border: '1px solid #EDEDED',
+                borderRadius: 14, fontSize: 13, color: '#444',
+              }}>{q}</button>
+            ))}
+          </div>
+        )}
+      </div>
+
+      <div style={{ padding: '10px 16px 12px', background: '#FAFAFB', borderTop: '1px solid #EEE' }}>
+        <div style={{
+          display: 'flex', alignItems: 'center', gap: 8,
+          background: '#fff', border: '1px solid #E5E5E5',
+          borderRadius: 999, padding: '6px 6px 6px 16px',
+        }}>
+          <input
+            value={input}
+            onChange={e => setInput(e.target.value)}
+            onKeyDown={e => e.key === 'Enter' && send(input)}
+            placeholder="跟梗王唠两句…"
+            style={{
+              flex: 1, border: 'none', outline: 'none', fontSize: 14,
+              background: 'transparent', fontFamily: 'inherit',
+            }}
+          />
+          <button onClick={() => send(input)} disabled={!input.trim()} style={{
+            height: 32, padding: '0 14px', borderRadius: 999,
+            background: input.trim() ? 'var(--purple)' : '#DDD',
+            color: '#fff', fontSize: 13, fontWeight: 700, transition: 'all 0.2s',
+          }}>发送</button>
+        </div>
+      </div>
+
+      {showPersonaSwitch && (
+        <PersonaSheet current={persona} onPick={p => { setPersona(p); setShowPersonaSwitch(false); }}
+                      onClose={() => setShowPersonaSwitch(false)}/>
+      )}
+    </div>
+  );
+}
+
+function MessageBubble({ msg }) {
+  const isBot = msg.role === 'bot';
+  return (
+    <div className="pop-in" style={{
+      display: 'flex', gap: 8, alignItems: 'flex-end',
+      justifyContent: isBot ? 'flex-start' : 'flex-end',
+    }}>
+      {isBot && (
+        <div style={{ width: 32, height: 32, flexShrink: 0 }}>
+          <DogeAvatar size={32} />
+        </div>
+      )}
+      <div style={{
+        maxWidth: '75%', padding: '10px 14px',
+        fontSize: 15, lineHeight: 1.5,
+        background: isBot ? 'var(--purple-light)' : '#1A1A1A',
+        color: isBot ? '#1A1A1A' : '#fff',
+        borderRadius: isBot ? '16px 16px 16px 4px' : '16px 16px 4px 16px',
+        whiteSpace: 'pre-line', wordBreak: 'break-word',
+      }}>
+        {msg.text}
+        {isBot && msg.meta && (
+          <div style={{
+            marginTop: 8, display: 'inline-flex', gap: 6, alignItems: 'center',
+            fontSize: 10, fontWeight: 700, color: '#6B5B8E',
+            background: 'rgba(123,94,167,0.12)', borderRadius: 999, padding: '3px 8px',
+          }}>
+            <span>{msg.meta.source === 'modelscope' ? 'Kimi-K2.5 实时' : msg.meta.source === 'fallback' ? '本地回退' : msg.meta.source === 'mock' ? 'Mock' : '本地'}</span>
+            {msg.meta.latencyMs ? <span>{msg.meta.latencyMs}ms</span> : null}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function PersonaSheet({ current, onPick, onClose }) {
+  return (
+    <div style={{ position: 'absolute', inset: 0, zIndex: 100, background: 'rgba(0,0,0,0.4)' }}
+         onClick={onClose} className="fade-in">
+      <div className="slide-up" onClick={e => e.stopPropagation()} style={{
+        position: 'absolute', left: 0, right: 0, bottom: 0,
+        background: '#fff', borderRadius: '28px 28px 0 0',
+        padding: '12px 20px 32px',
+      }}>
+        <div style={{ width: 40, height: 4, background: '#E0E0E0', borderRadius: 999, margin: '4px auto 16px' }}/>
+        <div style={{ fontSize: 18, fontWeight: 800, marginBottom: 4 }}>梗王换人格</div>
+        <div style={{ fontSize: 12, color: '#888', marginBottom: 16 }}>选一个梗王版本来跟你唠</div>
+        {Object.values(PERSONAS).map(p => (
+          <button key={p.key} onClick={() => onPick(p)} style={{
+            display: 'flex', alignItems: 'center', gap: 12,
+            width: '100%', padding: '12px 14px',
+            background: current.key === p.key ? '#F0EBFA' : '#F7F7F8',
+            border: current.key === p.key ? '2px solid var(--purple)' : '2px solid transparent',
+            borderRadius: 16, marginBottom: 8, textAlign: 'left',
+          }}>
+            <div style={{
+              width: 40, height: 40, borderRadius: '50%',
+              background: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center',
+              fontSize: 22,
+            }}>
+              {p.key === 'default' ? '👑' : p.key === 'dialect' ? '🧊' : '📜'}
+            </div>
+            <div style={{ flex: 1 }}>
+              <div style={{ fontSize: 15, fontWeight: 700 }}>{p.name}</div>
+              <div style={{ fontSize: 12, color: '#888', marginTop: 2 }}>{p.subtitle}</div>
+            </div>
+            {current.key === p.key && <span style={{ color: 'var(--purple)', fontSize: 18 }}>✓</span>}
+          </button>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+// ========== screen-plaza.jsx ==========
+function Plaza({ onProfileSync, onOpenGen }) {
+  const [filter, setFilter] = React.useState('all');
+  const [feedView, setFeedView] = React.useState('all');
+  const [posts, setPosts] = React.useState(SEED_POSTS);
+  const [detailPost, setDetailPost] = React.useState(null);
+  const [showSheet, setShowSheet] = React.useState(false);
+  const [loading, setLoading] = React.useState(false);
+  const [query, setQuery] = React.useState('');
+  const [sort, setSort] = React.useState('new'); // new | hot | comment
+  const [profileUser, setProfileUser] = React.useState(null);
+  const [profileLoading, setProfileLoading] = React.useState(false);
+  const [hotComments, setHotComments] = React.useState([]);
+  const [showHotComments, setShowHotComments] = React.useState(false);
+  const [loadingHotComments, setLoadingHotComments] = React.useState(false);
+
+  React.useEffect(() => {
+    let alive = true;
+    setLoading(true);
+    window.MemeLabAPI.getPosts(null, feedView)
+      .then((postResp) => {
+        if (!alive) return;
+        setPosts(postResp?.posts?.length ? postResp.posts : []);
+      })
+      .finally(() => alive && setLoading(false));
+    return () => { alive = false; };
+  }, [feedView]);
+
+  const filters = [
+    { key: 'all', label: '全部' },
+    { key: '🔥 今日热梗', label: '🔥 今日热梗' },
+    { key: '🌱 冷门好梗', label: '🌱 冷门好梗' },
+    { key: '💀 考古老梗', label: '💀 考古老梗' },
+  ];
+  const socialTabs = [
+    { key: 'all', label: '全部动态' },
+    { key: 'following', label: '关注' },
+    { key: 'liked', label: '已赞' },
+    { key: 'mine', label: '我发的' },
+  ];
+
+  const lowerQuery = (query || '').trim().toLowerCase();
+  let visible = filter === 'all' ? posts : posts.filter(p => p.tag === filter);
+  if (lowerQuery) {
+    visible = visible.filter(p => {
+      const hay = [
+        p.author, p.caption, p.template, p.tag, p.sourceLabel, p.memeLabel,
+      ].filter(Boolean).join(' ').toLowerCase();
+      return hay.includes(lowerQuery);
+    });
+  }
+  if (sort === 'hot') {
+    visible = visible.slice().sort((a, b) => (b.stats?.laugh || 0) - (a.stats?.laugh || 0));
+  } else if (sort === 'comment') {
+    visible = visible.slice().sort((a, b) => (b.stats?.comments || 0) - (a.stats?.comments || 0));
+  } else {
+    visible = visible.slice().sort((a, b) => String(b.createdAt || '').localeCompare(String(a.createdAt || '')));
+  }
+  function replacePost(nextPost) {
+    setPosts(ps => ps.map(p => p.id === nextPost.id ? { ...p, ...nextPost, laughed: nextPost.laughed ?? p.laughed } : p));
+  }
+
+  async function openProfile(userId) {
+    setProfileLoading(true);
+    setProfileUser(null);
+    try {
+      const response = userId === 'me'
+        ? await window.MemeLabAPI.getMyProfile()
+        : await window.MemeLabAPI.getUserProfile(userId);
+      if (response?.profile) setProfileUser(response.profile);
+    } finally {
+      setProfileLoading(false);
+    }
+  }
+
+  async function openHotCommentsSheet() {
+    setShowHotComments(true);
+    setLoadingHotComments(true);
+    try {
+      const response = await window.MemeLabAPI.getHotComments(12);
+      setHotComments(response.comments || []);
+    } catch (e) {
+      setHotComments([]);
+    } finally {
+      setLoadingHotComments(false);
+    }
+  }
+
+  async function toggleFollow(userId) {
+    if (!userId) return;
+    try {
+      const response = await window.MemeLabAPI.toggleFollow(userId);
+      if (response?.profile) setProfileUser(response.profile);
+      if (feedView === 'following') {
+        const listResponse = await window.MemeLabAPI.getPosts(null, 'following');
+        setPosts(listResponse.posts || []);
+      }
+    } catch (e) {}
+  }
+
+  function openPost(post) {
+    setShowHotComments(false);
+    setDetailPost(post);
+  }
+
+  async function laugh(id) {
+    try {
+      const response = await window.MemeLabAPI.laughPost(id);
+      replacePost({ ...response.post, laughed: true });
+      onProfileSync(response.profile, 2);
+    } catch (e) {
+      setPosts(ps => ps.map(p => p.id === id
+        ? { ...p, stats: { ...p.stats, laugh: p.stats.laugh + 1 }, laughed: true }
+        : p));
+      onProfileSync(null, 2);
+    }
+  }
+
+  async function favorite(id) {
+    try {
+      const response = await window.MemeLabAPI.favoritePost(id);
+      replacePost({ ...response.post, favored: true });
+      onProfileSync(response.profile, 1);
+    } catch (e) {
+      setPosts(ps => ps.map(p => p.id === id
+        ? { ...p, stats: { ...p.stats, shares: p.stats.shares + 1 }, favored: true }
+        : p));
+      onProfileSync(null, 1);
+    }
+  }
+
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', height: '100%', background: '#FAFAFB', position: 'relative' }}>
+      <div style={{ padding: '10px 18px 8px', background: '#FAFAFB', position: 'sticky', top: 0, zIndex: 5 }}>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10 }}>
+          <div>
+            <div style={{ fontSize: 28, fontWeight: 800, letterSpacing: '-0.3px' }}>广场 🔥</div>
+            <div style={{ fontSize: 12, color: '#888', marginTop: 2 }}>刷的是梗，评的也是梗</div>
+          </div>
+          <button onClick={() => setShowSheet(true)} style={{
+            width: 42, height: 42, borderRadius: '50%',
+            background: '#fff', boxShadow: 'var(--shadow-card)',
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+            fontSize: 24, fontWeight: 500, color: '#1A1A1A', flexShrink: 0,
+          }}>+</button>
+        </div>
+        <div className="no-scroll" style={{ display: 'flex', gap: 8, overflowX: 'auto', marginTop: 12, paddingBottom: 4 }}>
+          {socialTabs.map(item => (
+            <button key={item.key} onClick={() => setFeedView(item.key)} style={{
+              flexShrink: 0, padding: '7px 12px', borderRadius: 999, fontSize: 12, fontWeight: 700,
+              background: feedView === item.key ? '#1A1A1A' : '#F0F0F0',
+              color: feedView === item.key ? '#fff' : '#666',
+            }}>{item.label}</button>
+          ))}
+          <button onClick={openHotCommentsSheet} style={{
+            flexShrink: 0, padding: '7px 12px', borderRadius: 999, fontSize: 12, fontWeight: 700,
+            background: '#FFF4E8', color: '#C46B00',
+          }}>热门评论</button>
+        </div>
+        <div className="no-scroll" style={{
+          display: 'flex', gap: 8, overflowX: 'auto',
+          marginTop: 12, paddingBottom: 4,
+        }}>
+          {filters.map(f => (
+            <button key={f.key} onClick={() => setFilter(f.key)} style={{
+              flexShrink: 0,
+              padding: '7px 14px', borderRadius: 999, fontSize: 12, fontWeight: 600,
+              background: filter === f.key ? '#1A1A1A' : '#F0F0F0',
+              color: filter === f.key ? '#fff' : '#888',
+              transition: 'all 0.2s',
+            }}>{f.label}</button>
+          ))}
+        </div>
+        <div style={{
+          display: 'flex', gap: 10, alignItems: 'center',
+          marginTop: 10,
+        }}>
+          <div style={{
+            flex: 1, display: 'flex', alignItems: 'center', gap: 8,
+            background: '#fff', border: '1px solid #E8E8E8', borderRadius: 999,
+            padding: '6px 12px',
+          }}>
+            <span style={{ fontSize: 14, color: '#AAA' }}>🔎</span>
+            <input
+              value={query}
+              onChange={e => setQuery(e.target.value)}
+              placeholder="搜作者/文案/来源社区/模板…"
+              style={{ flex: 1, border: 'none', outline: 'none', fontSize: 13, background: 'transparent' }}
+            />
+            {query && (
+              <button onClick={() => setQuery('')} style={{ fontSize: 12, color: '#888' }}>清空</button>
+            )}
+          </div>
+          <div style={{ display: 'flex', gap: 6, flexShrink: 0 }}>
+            <button onClick={() => setSort('new')} style={{
+              padding: '7px 10px', borderRadius: 999, fontSize: 12, fontWeight: 700,
+              background: sort === 'new' ? '#1A1A1A' : '#F0F0F0',
+              color: sort === 'new' ? '#fff' : '#666',
+            }}>最新</button>
+            <button onClick={() => setSort('hot')} style={{
+              padding: '7px 10px', borderRadius: 999, fontSize: 12, fontWeight: 700,
+              background: sort === 'hot' ? '#1A1A1A' : '#F0F0F0',
+              color: sort === 'hot' ? '#fff' : '#666',
+            }}>最热</button>
+            <button onClick={() => setSort('comment')} style={{
+              padding: '7px 10px', borderRadius: 999, fontSize: 12, fontWeight: 700,
+              background: sort === 'comment' ? '#1A1A1A' : '#F0F0F0',
+              color: sort === 'comment' ? '#fff' : '#666',
+            }}>热评</button>
+          </div>
+        </div>
+      </div>
+
+      <div className="no-scroll" style={{
+        flex: 1, overflowY: 'auto',
+        padding: '8px 16px 112px',
+        display: 'flex', flexDirection: 'column', gap: 14,
+      }}>
+        {loading && posts.length === 0 && (
+          <div style={{ padding: 18, textAlign: 'center', color: '#888', fontSize: 13 }}>广场加载中…</div>
+        )}
+        {!loading && visible.length === 0 && (
+          <div style={{ padding: 18, textAlign: 'center', color: '#888', fontSize: 13 }}>
+            没搜到相关内容，换个关键词试试？
+          </div>
+        )}
+        {visible.map(p => (
+          <PostCard
+            key={p.id}
+            post={p}
+            onLaugh={() => laugh(p.id)}
+            onFavorite={() => favorite(p.id)}
+            onOpenAuthor={() => openProfile(p.authorId)}
+            onRemix={() => onOpenGen({
+              mode: 'template',
+              input: `用 ${p.template} 做一个关于${p.caption.replace(/\n/g, ' ').slice(0, 18)}的梗`,
+              templateName: p.template,
+            })}
+            onOpenDetail={() => setDetailPost(p)}
+          />
+        ))}
+      </div>
+
+      {showSheet && <PostSheet onClose={() => setShowSheet(false)} onGen={intent => { setShowSheet(false); onOpenGen(intent); }}/>}
+      {(profileUser || profileLoading) && (
+        <UserProfileSheet
+          profile={profileUser}
+          loading={profileLoading}
+          onClose={() => { setProfileUser(null); setProfileLoading(false); }}
+          onToggleFollow={toggleFollow}
+          onOpenPost={openPost}
+        />
+      )}
+      {showHotComments && (
+        <HotCommentsSheet
+          comments={hotComments}
+          loading={loadingHotComments}
+          onClose={() => setShowHotComments(false)}
+          onOpenPost={openPost}
+          onOpenUser={openProfile}
+        />
+      )}
+      {detailPost && <PostDetail post={detailPost} onClose={() => setDetailPost(null)} onProfileSync={onProfileSync}/>}
+    </div>
+  );
+}
+
+function PostCard({ post, onLaugh, onOpenDetail, onRemix, onFavorite, onOpenAuthor }) {
+  return (
+    <div className="pop-in" style={{
+      display: 'flex', flexDirection: 'column', flexShrink: 0,
+      background: '#fff', borderRadius: 20, overflow: 'hidden',
+      boxShadow: 'var(--shadow-card)',
+    }}>
+      <div style={{ padding: '12px 14px', display: 'flex', alignItems: 'center', gap: 10 }}>
+        <button onClick={onOpenAuthor} style={{ display: 'flex', alignItems: 'center', gap: 10, flex: 1, minWidth: 0, textAlign: 'left' }}>
+          <div style={{
+            width: 36, height: 36, borderRadius: '50%',
+            background: post.bg, display: 'flex', alignItems: 'center', justifyContent: 'center',
+            fontSize: 20,
+          }}>{post.avatar}</div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+            <div style={{ fontSize: 13, fontWeight: 700, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>@{post.author}</div>
+            <LevelTag level={post.level}/>
+          </div>
+          <div style={{ fontSize: 11, color: '#888', marginTop: 2, display: 'flex', gap: 6, alignItems: 'center', flexWrap: 'wrap' }}>
+            <Badge accent={post.accent}>{post.tag}</Badge>
+            {post.followingAuthor && <Badge accent="green">已关注</Badge>}
+            {post.mine && <Badge accent="purple">我发的</Badge>}
+            <span>· {post.time}</span>
+          </div>
+        </button>
+      </div>
+
+      <MemeArtwork assetPath={post.assetPath} label={post.memeLabel} aspect="1/1" bg={post.bg}/>
+
+      <div style={{ padding: '12px 16px 10px', fontSize: 14, lineHeight: 1.55, whiteSpace: 'pre-line' }}>
+        {post.caption}
+        {(post.sourceLabel || post.source) && (
+          <div style={{ marginTop: 8 }}>
+            <Badge accent="amber">📎 {post.sourceLabel || post.source}</Badge>
+          </div>
+        )}
+      </div>
+
+      <div style={{ display: 'flex', borderTop: '1px solid #F0F0F0' }}>
+        <ActionBtn icon="😂" label={post.stats.laugh} active={post.laughed} onClick={onLaugh}/>
+        <ActionBtn icon="💬" label="用梗评" onClick={onOpenDetail}/>
+        <ActionBtn icon="🎨" label="二创" onClick={onRemix}/>
+        <ActionBtn icon="♡" label={post.stats.shares} active={post.favored} onClick={onFavorite}/>
+      </div>
+    </div>
+  );
+}
+
+function ActionBtn({ icon, label, active, onClick }) {
+  return (
+    <button onClick={onClick} style={{
+      flex: 1, padding: '10px 0',
+      display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 5,
+      fontSize: 12, color: active ? 'var(--red)' : '#666',
+      fontWeight: active ? 700 : 500,
+    }}>
+      <span style={{ fontSize: 15 }}>{icon}</span>
+      <span>{label}</span>
+    </button>
+  );
+}
+
+function PostDetail({ post, onClose, onProfileSync }) {
+  const [comments, setComments] = React.useState([]);
+  const [aiSuggestions, setAiSuggestions] = React.useState([]);
+  const [loadingAI, setLoadingAI] = React.useState(false);
+  const [customComment, setCustomComment] = React.useState('');
+  const [explaining, setExplaining] = React.useState(false);
+  const [explanation, setExplanation] = React.useState('');
+
+  React.useEffect(() => {
+    let alive = true;
+    window.MemeLabAPI.getComments(post.id)
+      .then(({ comments: nextComments }) => {
+        if (alive && nextComments?.length) setComments(nextComments);
+      })
+      .catch(() => {})
+    return () => { alive = false; };
+  }, [post.id]);
+
+  async function loadAISuggestions() {
+    setLoadingAI(true);
+    try {
+      const response = await window.MemeLabAPI.getCommentSuggestions(post.id);
+      setAiSuggestions(response.suggestions?.length ? response.suggestions : ['这不就我的日常.jpg', '那咋了 🫠 班味就这味儿', '家人们谁懂啊']);
+    } catch (e) {
+      setAiSuggestions(['这不就我的日常.jpg', '那咋了 🫠 班味就这味儿', '家人们谁懂啊']);
+    }
+    setLoadingAI(false);
+  }
+
+  async function postComment(text) {
+    if (!text.trim()) return;
+    try {
+      const response = await window.MemeLabAPI.postComment(post.id, text);
+      setComments(response.comments || comments);
+      onProfileSync(response.profile, response.comment?.topPick ? 20 : 10);
+    } catch (e) {
+      setComments(cs => [{ id: 'nc' + Date.now(), author: '我', avatar: '😎', text, votes: 0, justPosted: true }, ...cs]);
+      onProfileSync(null, 10);
+    }
+    setCustomComment('');
+  }
+
+  async function loadExplanation() {
+    setExplaining(true);
+    try {
+      const response = await window.MemeLabAPI.explainMeme(post.caption);
+      setExplanation(response.explanation || '这梗主打一个情绪反差，越认真越好笑。');
+    } catch (e) {
+      setExplanation('这梗主打一个反差感，越像真实监控回放越有味儿。');
+    }
+    setExplaining(false);
+  }
+
+  return (
+    <div className="fade-in" style={{
+      position: 'absolute', inset: 0, zIndex: 90, background: 'rgba(0,0,0,0.5)',
+    }} onClick={onClose}>
+      <div className="slide-up" onClick={e => e.stopPropagation()} style={{
+        position: 'absolute', left: 0, right: 0, bottom: 0, top: 40,
+        background: '#FAFAFB', borderRadius: '28px 28px 0 0',
+        display: 'flex', flexDirection: 'column',
+      }}>
+        <div style={{ width: 40, height: 4, background: '#E0E0E0', borderRadius: 999, margin: '10px auto 4px' }}/>
+
+        <div className="no-scroll" style={{ flex: 1, overflowY: 'auto', padding: '8px 16px 16px' }}>
+          <div style={{
+            background: '#fff', borderRadius: 16, padding: 12,
+            display: 'flex', gap: 10, alignItems: 'center',
+            boxShadow: 'var(--shadow-card)',
+          }}>
+            <div style={{ width: 48, height: 48, flexShrink: 0, borderRadius: 10, overflow: 'hidden' }}>
+              <MemeArtwork assetPath={post.assetPath} label={post.avatar} aspect="1/1" bg={post.bg}/>
+            </div>
+            <div style={{ flex: 1, fontSize: 13, lineHeight: 1.4, whiteSpace: 'pre-line' }}>{post.caption}</div>
+          </div>
+
+          <div style={{
+            marginTop: 14, padding: '10px 14px',
+            background: 'linear-gradient(90deg, #FFF7E6, #FFEDC2)',
+            borderRadius: 14, fontSize: 12, fontWeight: 600, color: '#8B6914',
+            display: 'flex', alignItems: 'center', gap: 8,
+          }}>
+            <span>⚠️</span>
+            <span>评论区只收梗，不收人话。没灵感？让AI帮你想。</span>
+          </div>
+
+          <div style={{ marginTop: 10, display: 'flex', gap: 8 }}>
+            <button onClick={loadExplanation} disabled={explaining} style={{
+              padding: '8px 12px', borderRadius: 999, background: '#F0EBFA',
+              color: 'var(--purple)', fontSize: 12, fontWeight: 700,
+            }}>{explaining ? '梗王分析中…' : '🧠 这梗啥意思？'}</button>
+            {post.assetPath && (
+              <Badge accent="blue">真实图素材</Badge>
+            )}
+            {post.sourceUrl && /^https?:/i.test(post.sourceUrl) && (
+              <button onClick={() => window.open(post.sourceUrl, '_blank', 'noopener,noreferrer')} style={{
+                padding: '8px 12px', borderRadius: 999, background: '#FFF4E8',
+                color: '#C46B00', fontSize: 12, fontWeight: 700,
+              }}>🔗 看原帖</button>
+            )}
+          </div>
+
+          {explanation && (
+            <div style={{
+              marginTop: 10, padding: '12px 14px', borderRadius: 14,
+              background: '#F4F7FF', color: '#365E9B', fontSize: 13, lineHeight: 1.6,
+            }}>
+              {explanation}
+            </div>
+          )}
+
+          <div style={{ marginTop: 16 }}>
+            <div style={{ fontSize: 13, fontWeight: 700, color: '#888', marginBottom: 10 }}>
+              梗评 · {comments.length}
+            </div>
+            {comments.map(c => <CommentCard key={c.id} comment={c}/>)}
+          </div>
+        </div>
+
+        <div style={{ borderTop: '1px solid #EEE', background: '#fff', padding: '10px 16px 12px' }}>
+          {aiSuggestions.length > 0 && (
+            <div style={{ marginBottom: 10 }}>
+              <div style={{ fontSize: 11, color: 'var(--blue)', fontWeight: 700, marginBottom: 6 }}>
+                🤖 AI 给你3个梗，选一个回？
+              </div>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                {aiSuggestions.map((s, i) => (
+                  <button key={i} onClick={() => postComment(s)} className="pop-in" style={{
+                    textAlign: 'left', padding: '8px 12px',
+                    background: '#F0F6FF', border: '1px solid #D5E6FB',
+                    borderRadius: 12, fontSize: 13, color: '#1A1A1A',
+                  }}>{s}</button>
+                ))}
+              </div>
+            </div>
+          )}
+          <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+            <button onClick={loadAISuggestions} disabled={loadingAI} style={{
+              padding: '8px 12px', borderRadius: 999,
+              background: loadingAI ? '#E0E0E0' : '#F0F6FF',
+              color: 'var(--blue)', fontSize: 12, fontWeight: 700, flexShrink: 0,
+            }}>{loadingAI ? 'AI想中…' : '🤖 AI帮我想'}</button>
+            <input
+              value={customComment}
+              onChange={e => setCustomComment(e.target.value)}
+              onKeyDown={e => e.key === 'Enter' && postComment(customComment)}
+              placeholder="自己来一个梗…"
+              style={{
+                flex: 1, padding: '8px 12px', border: '1px solid #E5E5E5',
+                borderRadius: 999, fontSize: 13, outline: 'none',
+              }}/>
+            <button onClick={() => postComment(customComment)} style={{
+              padding: '8px 14px', borderRadius: 999,
+              background: customComment.trim() ? 'var(--purple)' : '#DDD',
+              color: '#fff', fontSize: 13, fontWeight: 700, flexShrink: 0,
+            }}>发</button>
+          </div>
+          <button onClick={onClose} style={{
+            marginTop: 10, width: '100%', padding: 10, fontSize: 12, color: '#888',
+          }}>关闭</button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function CommentCard({ comment }) {
+  return (
+    <div className={comment.justPosted ? 'pop-in' : ''} style={{
+      background: '#fff', borderRadius: 14, padding: 12, marginBottom: 8,
+      position: 'relative', boxShadow: 'var(--shadow-card)',
+    }}>
+      {comment.topPick && (
+        <div style={{
+          position: 'absolute', top: -8, left: 12,
+          background: 'linear-gradient(90deg, #FFD700, #FFA500)',
+          color: '#fff', fontSize: 10, fontWeight: 800,
+          padding: '3px 10px', borderRadius: 999, letterSpacing: '0.3px',
+        }}>✨ 梗中梗</div>
+      )}
+      <div style={{ display: 'flex', alignItems: 'flex-start', gap: 10 }}>
+        <div style={{
+          width: 32, height: 32, borderRadius: '50%', background: '#F5F5F5',
+          display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 16,
+          flexShrink: 0,
+        }}>{comment.avatar}</div>
+        <div style={{ flex: 1 }}>
+          <div style={{ fontSize: 12, fontWeight: 700, color: '#666' }}>@{comment.author}</div>
+          <div style={{ fontSize: 14, marginTop: 4, lineHeight: 1.5 }}>{comment.text}</div>
+          <div style={{ fontSize: 11, color: '#AAA', marginTop: 6, display: 'flex', gap: 12 }}>
+            <span>👍 {comment.votes}</span>
+            <span>回复</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function MiniStat({ value, label }) {
+  return (
+    <div style={{ background: '#F7F7F8', borderRadius: 12, padding: '8px 6px', textAlign: 'center' }}>
+      <div style={{ fontSize: 16, fontWeight: 800 }}>{value}</div>
+      <div style={{ fontSize: 10, color: '#888', marginTop: 2 }}>{label}</div>
+    </div>
+  );
+}
+
+function UserProfileSheet({ profile, loading, onClose, onToggleFollow, onOpenPost }) {
+  return (
+    <div className="fade-in" style={{ position: 'absolute', inset: 0, zIndex: 105, background: 'rgba(0,0,0,0.45)' }} onClick={onClose}>
+      <div className="slide-up" onClick={e => e.stopPropagation()} style={{
+        position: 'absolute', left: 0, right: 0, bottom: 0, top: 60,
+        background: '#FAFAFB', borderRadius: '28px 28px 0 0', display: 'flex', flexDirection: 'column',
+      }}>
+        <div style={{ width: 40, height: 4, background: '#E0E0E0', borderRadius: 999, margin: '10px auto 4px' }}/>
+        <div className="no-scroll" style={{ flex: 1, overflowY: 'auto', padding: '12px 16px 20px' }}>
+          {loading && !profile && (
+            <div style={{ padding: 20, textAlign: 'center', color: '#888', fontSize: 13 }}>主页加载中…</div>
+          )}
+          {profile && (
+            <>
+              <div style={{ background: '#fff', borderRadius: 18, padding: 16, boxShadow: 'var(--shadow-card)' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 12 }}>
+                  <div style={{ display: 'flex', gap: 12, alignItems: 'center' }}>
+                    <div style={{
+                      width: 52, height: 52, borderRadius: '50%', background: '#F0EBFA',
+                      display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 24,
+                    }}>{profile.avatar}</div>
+                    <div>
+                      <div style={{ fontSize: 16, fontWeight: 800 }}>@{profile.userName}</div>
+                      <div style={{ fontSize: 12, color: '#888', marginTop: 4, lineHeight: 1.5 }}>{profile.bio || '这个人很神秘，主页正在补梗。'}</div>
+                    </div>
+                  </div>
+                  {!profile.isMe && (
+                    <button onClick={() => onToggleFollow(profile.id)} style={{
+                      padding: '8px 14px', borderRadius: 999,
+                      background: profile.isFollowing ? '#F0F0F0' : '#1A1A1A',
+                      color: profile.isFollowing ? '#555' : '#fff', fontSize: 12, fontWeight: 700, flexShrink: 0,
+                    }}>{profile.isFollowing ? '已关注' : '关注'}</button>
+                  )}
+                </div>
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 8, marginTop: 14 }}>
+                  <MiniStat value={profile.counts?.posts || 0} label="发帖"/>
+                  <MiniStat value={profile.counts?.followers || 0} label="粉丝"/>
+                  <MiniStat value={profile.counts?.following || 0} label="关注"/>
+                  <MiniStat value={profile.counts?.liked || 0} label="获赞"/>
+                </div>
+              </div>
+
+              <div style={{ marginTop: 16 }}>
+                <div style={{ fontSize: 12, fontWeight: 800, color: '#666', marginBottom: 8 }}>最近发帖</div>
+                {profile.posts?.length ? profile.posts.map(post => (
+                  <button key={post.id} onClick={() => onOpenPost(post)} style={{
+                    width: '100%', textAlign: 'left', background: '#fff', borderRadius: 14,
+                    padding: 10, marginBottom: 8, boxShadow: 'var(--shadow-card)',
+                  }}>
+                    <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
+                      <div style={{ width: 52, height: 52, borderRadius: 10, overflow: 'hidden', flexShrink: 0 }}>
+                        <MemeArtwork assetPath={post.thumbnailUrl || post.assetPath} label={post.memeLabel} aspect="1/1" bg={post.bg}/>
+                      </div>
+                      <div style={{ flex: 1, minWidth: 0 }}>
+                        <div style={{ fontSize: 13, fontWeight: 700, lineHeight: 1.5, whiteSpace: 'pre-line' }}>{post.caption}</div>
+                        <div style={{ fontSize: 11, color: '#888', marginTop: 6, display: 'flex', gap: 10 }}>
+                          <span>😂 {post.stats?.laugh || 0}</span>
+                          <span>💬 {post.stats?.comments || 0}</span>
+                          <span>{post.time}</span>
+                        </div>
+                      </div>
+                    </div>
+                  </button>
+                )) : (
+                  <div style={{ background: '#fff', borderRadius: 14, padding: 14, fontSize: 12, color: '#888', boxShadow: 'var(--shadow-card)' }}>
+                    这个主页还没发过内容。
+                  </div>
+                )}
+              </div>
+
+              <div style={{ marginTop: 16 }}>
+                <div style={{ fontSize: 12, fontWeight: 800, color: '#666', marginBottom: 8 }}>热门评论</div>
+                {profile.recentComments?.length ? profile.recentComments.map(item => (
+                  <button key={item.id} onClick={() => onOpenPost(item.post)} style={{
+                    width: '100%', textAlign: 'left', background: '#fff', borderRadius: 14,
+                    padding: 12, marginBottom: 8, boxShadow: 'var(--shadow-card)',
+                  }}>
+                    <div style={{ fontSize: 13, lineHeight: 1.55 }}>{item.text}</div>
+                    <div style={{ fontSize: 11, color: '#888', marginTop: 8, display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap' }}>
+                      {item.topPick && <Badge accent="amber">梗中梗</Badge>}
+                      <span>👍 {item.votes}</span>
+                      <span>原帖：{item.post?.caption?.replace(/\n/g, ' ').slice(0, 18)}...</span>
+                    </div>
+                  </button>
+                )) : (
+                  <div style={{ background: '#fff', borderRadius: 14, padding: 14, fontSize: 12, color: '#888', boxShadow: 'var(--shadow-card)' }}>
+                    暂无高赞评论记录。
+                  </div>
+                )}
+              </div>
+            </>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function HotCommentsSheet({ comments, loading, onClose, onOpenPost, onOpenUser }) {
+  return (
+    <div className="fade-in" style={{ position: 'absolute', inset: 0, zIndex: 104, background: 'rgba(0,0,0,0.45)' }} onClick={onClose}>
+      <div className="slide-up" onClick={e => e.stopPropagation()} style={{
+        position: 'absolute', left: 0, right: 0, bottom: 0, top: 90,
+        background: '#FAFAFB', borderRadius: '28px 28px 0 0', display: 'flex', flexDirection: 'column',
+      }}>
+        <div style={{ width: 40, height: 4, background: '#E0E0E0', borderRadius: 999, margin: '10px auto 4px' }}/>
+        <div style={{ padding: '4px 16px 10px' }}>
+          <div style={{ fontSize: 18, fontWeight: 800 }}>热门评论</div>
+          <div style={{ fontSize: 12, color: '#888', marginTop: 2 }}>把社区里最能补刀的评论拎出来看</div>
+        </div>
+        <div className="no-scroll" style={{ flex: 1, overflowY: 'auto', padding: '0 16px 20px' }}>
+          {loading && <div style={{ padding: 20, textAlign: 'center', color: '#888', fontSize: 13 }}>热评加载中…</div>}
+          {!loading && !comments.length && (
+            <div style={{ padding: 20, textAlign: 'center', color: '#888', fontSize: 13 }}>暂时还没有热评。</div>
+          )}
+          {comments.map(item => (
+            <div key={item.id} style={{ background: '#fff', borderRadius: 16, padding: 12, marginBottom: 10, boxShadow: 'var(--shadow-card)' }}>
+              <button onClick={() => onOpenUser(item.authorId)} style={{ display: 'flex', alignItems: 'center', gap: 10, textAlign: 'left' }}>
+                <div style={{
+                  width: 34, height: 34, borderRadius: '50%', background: '#F5F5F5',
+                  display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 17,
+                }}>{item.avatar}</div>
+                <div style={{ flex: 1 }}>
+                  <div style={{ fontSize: 12, fontWeight: 800 }}>@{item.author}</div>
+                  <div style={{ fontSize: 11, color: '#888', marginTop: 2 }}>👍 {item.votes}</div>
+                </div>
+                {item.topPick && <Badge accent="amber">梗中梗</Badge>}
+              </button>
+              <div style={{ marginTop: 10, fontSize: 14, lineHeight: 1.6 }}>{item.text}</div>
+              <button onClick={() => onOpenPost(item.post)} style={{
+                marginTop: 10, width: '100%', textAlign: 'left', padding: '10px 12px',
+                background: '#F7F7F8', borderRadius: 12,
+              }}>
+                <div style={{ fontSize: 11, color: '#888' }}>来自帖子</div>
+                <div style={{ fontSize: 13, marginTop: 4, lineHeight: 1.5, whiteSpace: 'pre-line' }}>{item.post?.caption}</div>
+              </button>
+            </div>
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function PostSheet({ onClose, onGen }) {
+  const opts = [
+    { icon: '📷', title: '从相册上传', desc: '相册选图/短视频，加梗文', intent: { mode: 'image' } },
+    { icon: '✨', title: '现做一张', desc: '跳到梗图生成，一键出梗图', primary: true, intent: { mode: 'text' } },
+    { icon: '🎨', title: '用模板二创', desc: '选广场上的梗模板填空', intent: { mode: 'template' } },
+  ];
+  return (
+    <div className="fade-in" style={{
+      position: 'absolute', inset: 0, zIndex: 100, background: 'rgba(0,0,0,0.4)',
+    }} onClick={onClose}>
+      <div className="slide-up" onClick={e => e.stopPropagation()} style={{
+        position: 'absolute', left: 0, right: 0, bottom: 0,
+        background: '#fff', borderRadius: '28px 28px 0 0',
+        padding: '12px 16px 28px',
+      }}>
+        <div style={{ width: 40, height: 4, background: '#E0E0E0', borderRadius: 999, margin: '4px auto 12px' }}/>
+        <div style={{ fontSize: 18, fontWeight: 800, marginBottom: 4, padding: '0 4px' }}>发个梗</div>
+        <div style={{ fontSize: 12, color: '#888', marginBottom: 14, padding: '0 4px' }}>三种方式，随你整</div>
+        {opts.map((o, i) => (
+          <button key={i} onClick={() => onGen(o.intent)} style={{
+            width: '100%', display: 'flex', alignItems: 'center', gap: 14,
+            padding: '14px 14px', marginBottom: 8,
+            background: o.primary ? 'linear-gradient(135deg, #F0EBFA, #E8E0F5)' : '#F7F7F8',
+            borderRadius: 16, textAlign: 'left',
+          }}>
+            <div style={{
+              width: 44, height: 44, borderRadius: '50%', background: '#fff',
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+              fontSize: 22, flexShrink: 0,
+            }}>{o.icon}</div>
+            <div style={{ flex: 1 }}>
+              <div style={{ fontSize: 15, fontWeight: 700 }}>{o.title}</div>
+              <div style={{ fontSize: 12, color: '#888', marginTop: 2 }}>{o.desc}</div>
+            </div>
+            <span style={{ color: '#BBB' }}>›</span>
+          </button>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+// ========== screen-gen.jsx ==========
+function Generator({ onProfileSync, goBack, onOpenPlaza, initialIntent, level }) {
+  const [mode, setMode] = React.useState('text');
+  const [input, setInput] = React.useState('');
+  const [style, setStyle] = React.useState('yy');
+  const [generating, setGenerating] = React.useState(false);
+  const [results, setResults] = React.useState([]);
+  const [activeIdx, setActiveIdx] = React.useState(0);
+  const [selectedTpl, setSelectedTpl] = React.useState(GEN_TEMPLATES[0]);
+  const [selectedImage, setSelectedImage] = React.useState(null);
+  const [selectedImageName, setSelectedImageName] = React.useState('');
+  const [reviewText, setReviewText] = React.useState('');
+  const [actionLoading, setActionLoading] = React.useState('');
+  const fileInputRef = React.useRef(null);
+
+  React.useEffect(() => {
+    if (!initialIntent) return;
+    if (initialIntent.mode) setMode(initialIntent.mode);
+    if (typeof initialIntent.input === 'string') setInput(initialIntent.input);
+    if (initialIntent.templateName) {
+      const nextTpl = GEN_TEMPLATES.find(t => t.name === initialIntent.templateName);
+      if (nextTpl) setSelectedTpl(nextTpl);
+    }
+    setResults([]);
+    setReviewText('');
+  }, [initialIntent]);
+
+  async function generate() {
+    if (mode !== 'image' && !input.trim()) return;
+    if (mode === 'image' && !selectedImageName && !selectedImage) return;
+    setGenerating(true);
+    setResults([]);
+    setActiveIdx(0);
+    try {
+      let latestProfile = null;
+      for (let i = 0; i < 3; i++) {
+        const response = await window.MemeLabAPI.generate({
+          mode,
+          input,
+          style,
+          templateName: selectedTpl.name,
+          imageName: selectedImageName,
+          imageData: selectedImage,
+          count: 1,
+          variantOffset: i,
+        });
+        latestProfile = response.profile || latestProfile;
+        const chunk = response.results || [];
+        if (chunk.length) {
+          setResults(prev => (prev || []).concat(chunk));
+        }
+      }
+      onProfileSync(latestProfile, 15);
+    } catch (e) {
+      let lines = [];
+      try {
+        const styleMap = { cold: '冷漠系', crazy: '癫狂系', yy: '阴阳系', cute: '可爱系' };
+        const prompt = `用户的吐槽是：「${input || selectedImageName}」请生成3个不同的梗图文案（风格：${styleMap[style]}）。每个最多15字。只输出3行：`;
+        const r = await window.MockClaude.complete(prompt);
+        lines = (r || '').split('\n').map(l => l.trim().replace(/^[-·0-9.、)】"]+\s*/, '').replace(/["]/g, '')).filter(Boolean).slice(0, 3);
+      } catch (err) {}
+      if (lines.length < 3) lines = ['那咋了 🫠', '班味浓郁 建议冷冻', '家人们 谁懂啊 💀'];
+      const picked = [...GEN_TEMPLATES].sort(() => Math.random() - 0.5).slice(0, 3);
+      setResults(lines.slice(0, 3).map((text, i) => ({ id: 'mock-' + i, text, template: picked[i] })));
+      onProfileSync(null, 15);
+    }
+    setActiveIdx(0);
+    setGenerating(false);
+  }
+
+  function onPickImage(event) {
+    const file = event.target.files && event.target.files[0];
+    if (!file) return;
+    setSelectedImageName(file.name);
+    const reader = new FileReader();
+    reader.onload = () => setSelectedImage(reader.result);
+    reader.readAsDataURL(file);
+  }
+
+  async function publishCurrent() {
+    const cur = results[activeIdx];
+    if (!cur?.id) return;
+    setActionLoading('publish');
+    try {
+      const response = await window.MemeLabAPI.publishMeme(cur.id);
+      onProfileSync(response.profile, 10);
+      onOpenPlaza();
+    } finally {
+      setActionLoading('');
+    }
+  }
+
+  async function reviewCurrent() {
+    const cur = results[activeIdx];
+    if (!cur?.id) return;
+    setActionLoading('review');
+    try {
+      const response = await window.MemeLabAPI.critiqueMeme(cur.id);
+      setReviewText(response.critique || '这梗有点意思，可以再发酵一下。');
+    } catch (e) {
+      setReviewText('这梗我给你扬了 💀 先留着，回头再打磨。');
+    } finally {
+      setActionLoading('');
+    }
+  }
+
+  async function shareCurrent() {
+    const cur = results[activeIdx];
+    if (!cur) return;
+    setActionLoading('share');
+    try {
+      const response = cur.id?.startsWith('mock-')
+        ? { downloadUrl: cur.dataUrl || cur.assetPath, shareText: cur.text }
+        : await window.MemeLabAPI.shareMeme(cur.id);
+      const url = resolveAssetUrl(response.downloadUrl || cur.assetPath || cur.dataUrl);
+      if (url) {
+        const link = document.createElement('a');
+        link.href = url;
+        const suffix = (url || '').toLowerCase().includes('.png') || (cur.assetPath || '').toLowerCase().includes('.png') ? '.png' : '.svg';
+        link.download = 'memelab-' + Date.now() + suffix;
+        link.click();
+      }
+    } finally {
+      setActionLoading('');
+    }
+  }
+
+  const modes = [
+    { key: 'text', label: '一句话生梗', icon: '✍️' },
+    { key: 'template', label: '模板填空', icon: '🧩' },
+    { key: 'image', label: '图片改梗', icon: '🖼️' },
+  ];
+
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', height: '100%', background: '#FAFAFB' }}>
+      <div style={{ padding: '8px 20px 4px', display: 'flex', alignItems: 'center', gap: 10 }}>
+        <button onClick={goBack} style={{
+          width: 36, height: 36, borderRadius: '50%', background: '#F0F0F0',
+          display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 16,
+        }}>‹</button>
+        <div style={{ flex: 1 }}>
+          <div style={{ fontSize: 22, fontWeight: 800, lineHeight: 1.1 }}>造梗 ✨</div>
+          <div style={{ fontSize: 11, color: '#888', marginTop: 2 }}>一句话，出梗图</div>
+        </div>
+      </div>
+
+      <div style={{ display: 'flex', gap: 8, padding: '10px 16px 6px' }}>
+        {modes.map(m => (
+          <button key={m.key} onClick={() => setMode(m.key)} style={{
+            flex: 1, padding: '8px 4px', fontSize: 12, fontWeight: 600,
+            borderRadius: 12,
+            background: mode === m.key ? '#1A1A1A' : '#F0F0F0',
+            color: mode === m.key ? '#fff' : '#666',
+            transition: 'all 0.2s',
+          }}>{m.icon} {m.label}</button>
+        ))}
+      </div>
+
+      <div className="no-scroll" style={{ flex: 1, overflowY: 'auto', padding: '8px 16px 20px' }}>
+        {mode === 'text' && (
+          <>
+            <textarea
+              value={input}
+              onChange={e => setInput(e.target.value)}
+              placeholder="老板周五晚上6点在群里说加班…"
+              style={{
+                width: '100%', minHeight: 80, padding: 14,
+                border: '2px solid #EDEDED', borderRadius: 16,
+                fontSize: 14, fontFamily: 'inherit', outline: 'none',
+                resize: 'none', lineHeight: 1.5,
+              }}
+            />
+            <div style={{ fontSize: 11, color: '#888', margin: '10px 2px 6px', fontWeight: 600 }}>选个风格</div>
+            <div className="no-scroll" style={{ display: 'flex', gap: 8, overflowX: 'auto', paddingBottom: 4 }}>
+              {GEN_STYLES.map(s => (
+                <button key={s.key} onClick={() => setStyle(s.key)} style={{
+                  flexShrink: 0, padding: '7px 14px', borderRadius: 999, fontSize: 12, fontWeight: 600,
+                  background: style === s.key ? '#1A1A1A' : '#F0F0F0',
+                  color: style === s.key ? '#fff' : '#666',
+                }}>{s.label}</button>
+              ))}
+            </div>
+
+            <button onClick={generate} disabled={!input.trim() || generating} style={{
+              width: '100%', padding: '14px', marginTop: 16,
+              borderRadius: 16, fontSize: 15, fontWeight: 800,
+              background: input.trim() && !generating
+                ? 'linear-gradient(135deg, #7B5EA7, #5A3E8A)' : '#DDD',
+              color: '#fff',
+              boxShadow: input.trim() && !generating ? 'var(--shadow-purple)' : 'none',
+            }}>
+              {generating ? '梗图出炉中…' : '✨ 生成梗图'}
+            </button>
+
+            {generating && results.length === 0 && <GenSkeleton/>}
+            {results.length > 0 && (
+              <GenResults results={results} activeIdx={activeIdx} setActiveIdx={setActiveIdx}
+                          originalInput={input} onRegen={generate}
+                          onPublish={publishCurrent} onReview={reviewCurrent} onShare={shareCurrent}
+                          actionLoading={actionLoading} level={level}/>
+            )}
+          </>
+        )}
+
+        {mode === 'template' && (
+          <TemplateMode selectedTpl={selectedTpl} setSelectedTpl={setSelectedTpl} onGen={generate}
+                        input={input} setInput={setInput} generating={generating}
+                        results={results} activeIdx={activeIdx} setActiveIdx={setActiveIdx}
+                        onPublish={publishCurrent} onReview={reviewCurrent} onShare={shareCurrent}
+                        actionLoading={actionLoading} level={level}/>
+        )}
+
+        {mode === 'image' && (
+          <ImageMode
+            fileInputRef={fileInputRef}
+            onPickImage={onPickImage}
+            selectedImageName={selectedImageName}
+            selectedImage={selectedImage}
+            generating={generating}
+            results={results}
+            activeIdx={activeIdx}
+            setActiveIdx={setActiveIdx}
+            onGenerate={generate}
+            onPublish={publishCurrent}
+            onReview={reviewCurrent}
+            onShare={shareCurrent}
+            actionLoading={actionLoading}
+            level={level}
+          />
+        )}
+      </div>
+      {reviewText && (
+        <div className="fade-in" style={{ position: 'absolute', inset: 0, background: 'rgba(0,0,0,0.4)', zIndex: 20 }}
+             onClick={() => setReviewText('')}>
+          <div className="slide-up" onClick={e => e.stopPropagation()} style={{
+            position: 'absolute', left: 0, right: 0, bottom: 0,
+            background: '#fff', borderRadius: '28px 28px 0 0', padding: '16px 20px 28px',
+          }}>
+            <div style={{ width: 40, height: 4, background: '#E0E0E0', borderRadius: 999, margin: '4px auto 16px' }}/>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+              <DogeAvatar size={40} expression="smirk"/>
+              <div>
+                <div style={{ fontSize: 15, fontWeight: 800 }}>梗王点评</div>
+                <div style={{ fontSize: 12, color: '#888', marginTop: 2 }}>真实后端返回</div>
+              </div>
+            </div>
+            <div style={{ marginTop: 14, padding: 14, borderRadius: 16, background: '#F0EBFA', fontSize: 14, lineHeight: 1.6 }}>
+              {reviewText}
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function GenSkeleton() {
+  return (
+    <div style={{ marginTop: 16, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 12 }}>
+      <div style={{ fontSize: 13, color: 'var(--purple)', fontWeight: 700 }}>
+        <span className="bob" style={{ display: 'inline-block' }}>✨</span> 梗王画梗中…
+      </div>
+      <div className="skeleton" style={{ width: '80%', aspectRatio: '1/1', borderRadius: 16 }}/>
+      <div className="skeleton" style={{ width: '60%', height: 12, borderRadius: 6 }}/>
+    </div>
+  );
+}
+
+function GenResults({ results, activeIdx, setActiveIdx, originalInput, onRegen, onPublish, onReview, onShare, actionLoading, level }) {
+  const cur = results[activeIdx];
+  return (
+    <div style={{ marginTop: 16 }}>
+      <div style={{ fontSize: 12, color: '#888', marginBottom: 8, display: 'flex', justifyContent: 'space-between' }}>
+        <span>左右滑查看 ({activeIdx + 1}/{results.length})</span>
+        <button onClick={onRegen} style={{ color: 'var(--purple)', fontSize: 12, fontWeight: 700 }}>
+          🎲 再抽一组
+        </button>
+      </div>
+      <div className="pop-in" style={{
+        background: '#fff', borderRadius: 20, padding: 12, boxShadow: 'var(--shadow-card)',
+      }}>
+        <div style={{ position: 'relative', borderRadius: 12, overflow: 'hidden' }}>
+          <MemeArtwork assetPath={cur.assetPath} dataUrl={cur.dataUrl} label={`${cur.template.name}\n${cur.template.emoji}`} aspect="1/1" />
+          {!cur.textBaked && (
+            <div style={{
+              position: 'absolute', left: 0, right: 0, bottom: 0,
+              padding: '20px 16px 14px',
+              background: 'linear-gradient(transparent, rgba(0,0,0,0.7))',
+              color: '#fff', fontSize: 18, fontWeight: 800,
+              textAlign: 'center', textShadow: '0 2px 6px rgba(0,0,0,0.5)',
+              lineHeight: 1.3,
+            }}>{cur.text}</div>
+          )}
+          <div style={{
+            position: 'absolute', top: 8, right: 8,
+            background: 'rgba(0,0,0,0.6)', color: '#fff',
+            fontSize: 10, padding: '3px 8px', borderRadius: 999, fontWeight: 600,
+          }}>造梗局·{level || '黄金梗师'}水印</div>
+        </div>
+        {!!cur.imagePrompt && (
+          <div style={{ marginTop: 10, padding: '10px 12px', borderRadius: 12, background: '#F7F7F8' }}>
+            <div style={{ fontSize: 10, color: '#888', fontWeight: 700 }}>真实文生图提示词</div>
+            <div style={{ fontSize: 11, color: '#555', marginTop: 4, lineHeight: 1.5 }}>{cur.imagePrompt}</div>
+          </div>
+        )}
+      </div>
+
+      <div style={{ display: 'flex', gap: 6, justifyContent: 'center', marginTop: 10 }}>
+        {results.map((_, i) => (
+          <button key={i} onClick={() => setActiveIdx(i)} style={{
+            width: i === activeIdx ? 24 : 8, height: 8, borderRadius: 999,
+            background: i === activeIdx ? 'var(--purple)' : '#DDD',
+            transition: 'all 0.2s',
+          }}/>
+        ))}
+      </div>
+
+      <div style={{ display: 'flex', gap: 8, marginTop: 12 }}>
+        {results.map((r, i) => (
+          <button key={i} onClick={() => setActiveIdx(i)} style={{
+            flex: 1, padding: 8, borderRadius: 12,
+            background: '#fff',
+            border: i === activeIdx ? '2px solid var(--purple)' : '2px solid #EEE',
+            fontSize: 11, lineHeight: 1.3, textAlign: 'left',
+            color: '#444', fontWeight: 500,
+          }}>
+            <div style={{ fontSize: 18, marginBottom: 4 }}>{r.template.emoji}</div>
+            {r.text.slice(0, 14)}{r.text.length > 14 ? '…' : ''}
+          </button>
+        ))}
+      </div>
+
+      <div style={{ display: 'flex', gap: 8, marginTop: 16 }}>
+        <ExitBtn icon="🚀" label={actionLoading === 'publish' ? '发布中…' : '发到广场'} accent="red" onClick={onPublish} disabled={!!actionLoading}/>
+        <ExitBtn icon="💬" label={actionLoading === 'review' ? '点评中…' : '给梗王看'} accent="purple" onClick={onReview} disabled={!!actionLoading}/>
+        <ExitBtn icon="📥" label={actionLoading === 'share' ? '准备中…' : '保存/分享'} accent="blue" onClick={onShare} disabled={!!actionLoading}/>
+      </div>
+    </div>
+  );
+}
+
+function ExitBtn({ icon, label, accent, onClick, disabled }) {
+  const colors = { red: 'var(--red)', purple: 'var(--purple)', blue: 'var(--blue)' };
+  return (
+    <button onClick={onClick} disabled={disabled} style={{
+      flex: 1, padding: '12px 6px',
+      background: '#fff', borderRadius: 14,
+      border: '1px solid #EEE',
+      fontSize: 12, fontWeight: 700, color: disabled ? '#AAA' : colors[accent],
+      display: 'flex', flexDirection: 'column', gap: 4,
+      alignItems: 'center',
+    }}>
+      <span style={{ fontSize: 20 }}>{icon}</span>
+      {label}
+    </button>
+  );
+}
+
+function TemplateMode({ selectedTpl, setSelectedTpl, onGen, input, setInput, generating, results, activeIdx, setActiveIdx, onPublish, onReview, onShare, actionLoading, level }) {
+  return (
+    <>
+      <div style={{ fontSize: 11, color: '#888', margin: '2px 2px 8px', fontWeight: 600 }}>选一个模板</div>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 8 }}>
+        {GEN_TEMPLATES.map(t => (
+          <button key={t.name} onClick={() => setSelectedTpl(t)} className={selectedTpl.name === t.name ? 'grad-border' : ''} style={{
+            padding: 10, borderRadius: 14,
+            background: '#fff',
+            border: selectedTpl.name === t.name ? 'none' : '1px solid #EEE',
+            display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4,
+          }}>
+            <div style={{ fontSize: 26 }}>{t.emoji}</div>
+            <div style={{ fontSize: 11, fontWeight: 600 }}>{t.name}</div>
+          </button>
+        ))}
+      </div>
+      <div style={{ fontSize: 11, color: '#888', margin: '14px 2px 6px', fontWeight: 600 }}>描述下场景，AI自动填词</div>
+      <textarea
+        value={input}
+        onChange={e => setInput(e.target.value)}
+        placeholder={`用 ${selectedTpl.name} 做一个关于…`}
+        style={{
+          width: '100%', minHeight: 70, padding: 12,
+          border: '2px solid #EDEDED', borderRadius: 14,
+          fontSize: 13, fontFamily: 'inherit', outline: 'none', resize: 'none',
+        }}
+      />
+      <button onClick={onGen} disabled={!input.trim() || generating} style={{
+        width: '100%', padding: 14, marginTop: 12,
+        borderRadius: 14, fontSize: 14, fontWeight: 800,
+        background: input.trim() && !generating
+          ? 'linear-gradient(135deg, #4A8FE7, #2E6FCC)' : '#DDD',
+        color: '#fff',
+      }}>{generating ? '生成中…' : '✨ 用这个模板生成'}</button>
+      {generating && results.length === 0 && <GenSkeleton/>}
+      {results.length > 0 && (
+        <GenResults results={results} activeIdx={activeIdx} setActiveIdx={setActiveIdx} originalInput={input} onRegen={onGen}
+                    onPublish={onPublish} onReview={onReview} onShare={onShare} actionLoading={actionLoading} level={level}/>
+      )}
+    </>
+  );
+}
+
+function ImageMode({ fileInputRef, onPickImage, selectedImageName, selectedImage, generating, results, activeIdx, setActiveIdx, onGenerate, onPublish, onReview, onShare, actionLoading, level }) {
+  return (
+    <>
+      <div style={{
+        border: '2px dashed #DDD', borderRadius: 16,
+        padding: '24px 20px', textAlign: 'center',
+        background: '#fff',
+      }}>
+        <input ref={fileInputRef} type="file" accept="image/*" style={{ display: 'none' }} onChange={onPickImage}/>
+        <div style={{ fontSize: 48, marginBottom: 10 }}>📤</div>
+        <div style={{ fontSize: 15, fontWeight: 700, marginBottom: 4 }}>上传照片，AI改成梗图</div>
+        <div style={{ fontSize: 12, color: '#888', marginBottom: 16, lineHeight: 1.5 }}>
+          真实后端会根据文件名和场景生成可发布的梗图候选
+        </div>
+        <button onClick={() => fileInputRef.current && fileInputRef.current.click()} style={{
+          padding: '10px 24px', borderRadius: 999,
+          background: '#1A1A1A', color: '#fff', fontSize: 13, fontWeight: 700,
+        }}>从相册选图</button>
+        {selectedImageName && (
+          <div style={{ marginTop: 14, fontSize: 12, color: '#666' }}>已选择：{selectedImageName}</div>
+        )}
+        {selectedImage && (
+          <div style={{ marginTop: 14, borderRadius: 16, overflow: 'hidden' }}>
+            <img src={selectedImage} alt={selectedImageName || 'preview'} style={{ width: '100%', display: 'block' }}/>
+          </div>
+        )}
+        <button onClick={onGenerate} disabled={!selectedImageName || generating} style={{
+          width: '100%', padding: '14px', marginTop: 16,
+          borderRadius: 16, fontSize: 15, fontWeight: 800,
+          background: selectedImageName && !generating ? 'linear-gradient(135deg, #7B5EA7, #5A3E8A)' : '#DDD',
+          color: '#fff',
+        }}>{generating ? '图片改梗中…' : '✨ 生成改梗结果'}</button>
+      </div>
+      {generating && results.length === 0 && <GenSkeleton/>}
+      {results.length > 0 && (
+        <GenResults results={results} activeIdx={activeIdx} setActiveIdx={setActiveIdx} originalInput={selectedImageName} onRegen={onGenerate}
+                    onPublish={onPublish} onReview={onReview} onShare={onShare} actionLoading={actionLoading} level={level}/>
+      )}
+    </>
+  );
+}
+
+// ========== screen-world.jsx ==========
+const WORLD_REGION_SEEDS = [
+  { key: 'east-asia', name: '东亚', lat: 34, lon: 108, color: '#FF8A65', desc: '本地动物梗图、中文社区和东亚语境热点。' },
+  { key: 'north-america', name: '北美', lat: 40, lon: -98, color: '#4FC3F7', desc: 'Reddit / meme-api 主流英语梗图扩散带。' },
+  { key: 'europe', name: '欧洲', lat: 51, lon: 10, color: '#81C784', desc: 'Lemmy 等欧洲社区节点与二次传播。' },
+  { key: 'south-asia', name: '南亚', lat: 22, lon: 78, color: '#FFD54F', desc: '程序员梗、职场梗和跨文化二创热区。' },
+  { key: 'southeast-asia', name: '东南亚', lat: 6, lon: 106, color: '#BA68C8', desc: '表情包搬运和短视频语境传播活跃。' },
+  { key: 'oceania', name: '大洋洲', lat: -25, lon: 133, color: '#64B5F6', desc: '英语圈二次扩散补充节点。' },
+  { key: 'south-america', name: '南美', lat: -15, lon: -60, color: '#F06292', desc: '西语/葡语圈 meme 的再演绎区域。' },
+  { key: 'africa-middle-east', name: '中东非洲', lat: 10, lon: 26, color: '#FFB74D', desc: '跨平台扩散节点与外溢传播。' },
+  { key: 'global', name: '全球混合', lat: 0, lon: 0, color: '#90A4AE', desc: '来源未知或多地混合传播的梗图。' },
+];
+
+function inferWorldRegion(post) {
+  const source = (post.source || '').toLowerCase();
+  const label = `${post.sourceLabel || ''} ${post.community || ''} ${post.caption || ''}`.toLowerCase();
+  if (source === 'builtin-animal' || source === 'memelab') return 'east-asia';
+  if (label.includes('india') || label.includes('tcs')) return 'south-asia';
+  if (source === 'lemmy') return 'europe';
+  if (source === 'meme-api' || label.includes('reddit') || label.includes('dankmemes')) return 'north-america';
+  if (label.includes('singapore') || label.includes('indonesia') || label.includes('philippines')) return 'southeast-asia';
+  if (label.includes('australia') || label.includes('new zealand')) return 'oceania';
+  if (label.includes('brazil') || label.includes('argentina') || label.includes('mexico')) return 'south-america';
+  if (label.includes('dubai') || label.includes('africa') || label.includes('egypt')) return 'africa-middle-east';
+  return 'global';
+}
+
+function buildWorldRegions(posts) {
+  const buckets = {};
+  WORLD_REGION_SEEDS.forEach(region => {
+    buckets[region.key] = { ...region, count: 0, posts: [] };
+  });
+  posts.forEach(post => {
+    const key = inferWorldRegion(post);
+    const bucket = buckets[key] || buckets.global;
+    bucket.count += 1;
+    if (bucket.posts.length < 8) bucket.posts.push(post);
+  });
+  return Object.values(buckets)
+    .filter(region => region.count > 0 || region.key === 'global')
+    .sort((a, b) => b.count - a.count);
+}
+
+function projectGlobePoint(lat, lon, rotationDeg, radius, cx, cy) {
+  const latRad = lat * Math.PI / 180;
+  const lonRad = (lon + rotationDeg) * Math.PI / 180;
+  const x = Math.cos(latRad) * Math.sin(lonRad);
+  const y = Math.sin(latRad);
+  const z = Math.cos(latRad) * Math.cos(lonRad);
+  return {
+    x: cx + x * radius,
+    y: cy - y * radius,
+    z,
+    visible: z > -0.25,
+    scale: 0.6 + Math.max(z, -0.25) * 0.4,
+  };
+}
+
+function GlobeCanvas({ regions, activeKey, onSelect }) {
+  const canvasRef = React.useRef(null);
+  const frameRef = React.useRef(null);
+  const rotationRef = React.useRef(-35);
+  const dragRef = React.useRef({ down: false, startX: 0, startRot: 0 });
+  const hitRegionsRef = React.useRef([]);
+
+  React.useEffect(() => {
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+    const dpr = window.devicePixelRatio || 1;
+    const width = 320;
+    const height = 320;
+    canvas.width = width * dpr;
+    canvas.height = height * dpr;
+    canvas.style.width = width + 'px';
+    canvas.style.height = height + 'px';
+    const ctx = canvas.getContext('2d');
+    ctx.scale(dpr, dpr);
+
+    function draw() {
+      const w = width;
+      const h = height;
+      const cx = w / 2;
+      const cy = h / 2;
+      const radius = 118;
+      const rotationDeg = rotationRef.current;
+      ctx.clearRect(0, 0, w, h);
+
+      const glow = ctx.createRadialGradient(cx, cy, 10, cx, cy, radius + 42);
+      glow.addColorStop(0, 'rgba(123,94,167,0.15)');
+      glow.addColorStop(1, 'rgba(123,94,167,0)');
+      ctx.fillStyle = glow;
+      ctx.fillRect(0, 0, w, h);
+
+      const sphere = ctx.createRadialGradient(cx - 34, cy - 42, 12, cx, cy, radius);
+      sphere.addColorStop(0, '#FFFFFF');
+      sphere.addColorStop(0.18, '#DFF2FF');
+      sphere.addColorStop(0.55, '#8AB6E8');
+      sphere.addColorStop(1, '#223C66');
+      ctx.beginPath();
+      ctx.arc(cx, cy, radius, 0, Math.PI * 2);
+      ctx.fillStyle = sphere;
+      ctx.fill();
+
+      ctx.save();
+      ctx.beginPath();
+      ctx.arc(cx, cy, radius, 0, Math.PI * 2);
+      ctx.clip();
+
+      for (let lat = -60; lat <= 60; lat += 30) {
+        ctx.beginPath();
+        for (let lon = -180; lon <= 180; lon += 10) {
+          const point = projectGlobePoint(lat, lon, rotationDeg, radius, cx, cy);
+          if (lon === -180) ctx.moveTo(point.x, point.y);
+          else ctx.lineTo(point.x, point.y);
+        }
+        ctx.strokeStyle = 'rgba(255,255,255,0.16)';
+        ctx.lineWidth = 1;
+        ctx.stroke();
+      }
+      for (let lon = -150; lon <= 180; lon += 30) {
+        ctx.beginPath();
+        for (let lat = -80; lat <= 80; lat += 6) {
+          const point = projectGlobePoint(lat, lon, rotationDeg, radius, cx, cy);
+          if (lat === -80) ctx.moveTo(point.x, point.y);
+          else ctx.lineTo(point.x, point.y);
+        }
+        ctx.strokeStyle = 'rgba(255,255,255,0.12)';
+        ctx.lineWidth = 1;
+        ctx.stroke();
+      }
+      ctx.restore();
+
+      hitRegionsRef.current = [];
+      regions.forEach(region => {
+        const point = projectGlobePoint(region.lat, region.lon, rotationDeg, radius, cx, cy);
+        if (!point.visible) return;
+        const dotSize = 4 + Math.min(12, region.count * 0.22);
+        const active = activeKey === region.key;
+        hitRegionsRef.current.push({ key: region.key, x: point.x, y: point.y, r: dotSize + 6 });
+        ctx.beginPath();
+        ctx.arc(point.x, point.y, dotSize * 1.8, 0, Math.PI * 2);
+        ctx.fillStyle = active ? 'rgba(255,255,255,0.22)' : 'rgba(255,255,255,0.1)';
+        ctx.fill();
+        ctx.beginPath();
+        ctx.arc(point.x, point.y, dotSize, 0, Math.PI * 2);
+        ctx.fillStyle = region.color;
+        ctx.shadowColor = region.color;
+        ctx.shadowBlur = active ? 18 : 10;
+        ctx.fill();
+        ctx.shadowBlur = 0;
+      });
+
+      ctx.beginPath();
+      ctx.arc(cx, cy, radius, 0, Math.PI * 2);
+      ctx.strokeStyle = 'rgba(255,255,255,0.3)';
+      ctx.lineWidth = 1.2;
+      ctx.stroke();
+
+      rotationRef.current += dragRef.current.down ? 0 : 0.16;
+      frameRef.current = requestAnimationFrame(draw);
+    }
+
+    draw();
+    return () => {
+      if (frameRef.current) cancelAnimationFrame(frameRef.current);
+    };
+  }, [regions, activeKey]);
+
+  function pickRegion(clientX, clientY) {
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+    const rect = canvas.getBoundingClientRect();
+    const x = clientX - rect.left;
+    const y = clientY - rect.top;
+    const hit = hitRegionsRef.current
+      .map(item => ({ ...item, d: Math.hypot(item.x - x, item.y - y) }))
+      .filter(item => item.d <= item.r)
+      .sort((a, b) => a.d - b.d)[0];
+    if (hit) onSelect(hit.key);
+  }
+
+  return (
+    <canvas
+      ref={canvasRef}
+      onMouseDown={e => { dragRef.current = { down: true, startX: e.clientX, startRot: rotationRef.current }; }}
+      onMouseMove={e => {
+        if (!dragRef.current.down) return;
+        rotationRef.current = dragRef.current.startRot + (e.clientX - dragRef.current.startX) * 0.45;
+      }}
+      onMouseUp={() => { dragRef.current.down = false; }}
+      onMouseLeave={() => { dragRef.current.down = false; }}
+      onClick={e => pickRegion(e.clientX, e.clientY)}
+      style={{ width: 320, height: 320, display: 'block', margin: '0 auto', cursor: 'grab' }}
+    />
+  );
+}
+
+function WorldScreen({ onOpenGen, onOpenPlaza }) {
+  const [posts, setPosts] = React.useState([]);
+  const [loading, setLoading] = React.useState(true);
+  const [activeRegionKey, setActiveRegionKey] = React.useState('');
+
+  React.useEffect(() => {
+    let alive = true;
+    setLoading(true);
+    window.MemeLabAPI.getPosts()
+      .then(resp => {
+        if (!alive) return;
+        setPosts(resp?.posts || []);
+      })
+      .catch(() => { if (alive) setPosts([]); })
+      .finally(() => alive && setLoading(false));
+    return () => { alive = false; };
+  }, []);
+
+  const regions = React.useMemo(() => buildWorldRegions(posts), [posts]);
+  const activeRegion = regions.find(item => item.key === activeRegionKey) || regions[0] || WORLD_REGION_SEEDS[0];
+
+  React.useEffect(() => {
+    if (regions[0] && (!activeRegionKey || !regions.find(item => item.key === activeRegionKey) || activeRegionKey === 'global')) {
+      setActiveRegionKey(regions[0].key);
+    }
+  }, [regions, activeRegionKey]);
+
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', height: '100%', background: '#FAFAFB' }}>
+      <div style={{ padding: '10px 18px 6px' }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 10 }}>
+          <div>
+            <div style={{ fontSize: 26, fontWeight: 800 }}>世界梗图分布</div>
+            <div style={{ fontSize: 12, color: '#888', marginTop: 4 }}>把梗图来源映射到全球扩散节点，点亮地区看对应内容。</div>
+          </div>
+          <button onClick={() => onOpenGen({ mode: 'text' })} style={{
+            padding: '8px 14px', borderRadius: 999, background: '#1A1A1A',
+            color: '#fff', fontSize: 12, fontWeight: 700, flexShrink: 0,
+          }}>发梗</button>
+        </div>
+      </div>
+
+      <div className="no-scroll" style={{ flex: 1, overflowY: 'auto', padding: '8px 16px 108px' }}>
+        <div style={{
+          background: 'linear-gradient(180deg, #0E1930, #1A2848)',
+          borderRadius: 24, padding: '16px 12px 18px', color: '#fff', boxShadow: 'var(--shadow-card)',
+        }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '0 6px' }}>
+            <div>
+              <div style={{ fontSize: 12, opacity: 0.7 }}>Meme Globe</div>
+              <div style={{ fontSize: 18, fontWeight: 800, marginTop: 2 }}>{activeRegion?.name || '全球混合'}</div>
+            </div>
+            <Badge accent="blue">{posts.length} 条样本</Badge>
+          </div>
+          <GlobeCanvas regions={regions} activeKey={activeRegion?.key} onSelect={setActiveRegionKey}/>
+          <div style={{ padding: '0 8px' }}>
+            <div style={{ fontSize: 12, opacity: 0.8, lineHeight: 1.6 }}>
+              {activeRegion?.desc || '按来源社区、语种语境和平台扩散带做近似映射。'}
+            </div>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 8, marginTop: 12 }}>
+              <MiniStat value={regions.length} label="点亮地区"/>
+              <MiniStat value={activeRegion?.count || 0} label="当前样本"/>
+              <MiniStat value={posts.filter(post => post.assetPath).length} label="真实素材"/>
+            </div>
+          </div>
+        </div>
+
+        <div className="no-scroll" style={{ display: 'flex', gap: 8, overflowX: 'auto', marginTop: 14, paddingBottom: 4 }}>
+          {regions.map(region => (
+            <button key={region.key} onClick={() => setActiveRegionKey(region.key)} style={{
+              flexShrink: 0, padding: '8px 12px', borderRadius: 999,
+              background: activeRegion?.key === region.key ? '#1A1A1A' : '#fff',
+              color: activeRegion?.key === region.key ? '#fff' : '#555',
+              boxShadow: 'var(--shadow-card)', fontSize: 12, fontWeight: 700,
+            }}>
+              {region.name} · {region.count}
+            </button>
+          ))}
+        </div>
+
+        <div style={{ display: 'flex', gap: 8, marginTop: 14 }}>
+          <button onClick={() => onOpenPlaza()} style={{
+            flex: 1, padding: '12px 10px', borderRadius: 16, background: '#fff',
+            boxShadow: 'var(--shadow-card)', fontSize: 13, fontWeight: 700,
+          }}>回到广场</button>
+          <button onClick={() => onOpenGen({ mode: 'template', input: `做一个关于${activeRegion?.name || '世界梗图'}传播的梗` })} style={{
+            flex: 1, padding: '12px 10px', borderRadius: 16, background: 'linear-gradient(135deg, #F0EBFA, #E8E0F5)',
+            boxShadow: 'var(--shadow-card)', fontSize: 13, fontWeight: 700, color: 'var(--purple)',
+          }}>用该地区造梗</button>
+        </div>
+
+        <div style={{ marginTop: 18 }}>
+          <div style={{ fontSize: 12, fontWeight: 800, color: '#666', marginBottom: 8 }}>
+            {activeRegion?.name || '当前地区'}代表梗图
+          </div>
+          {loading && (
+            <div style={{ background: '#fff', borderRadius: 14, padding: 14, fontSize: 12, color: '#888', boxShadow: 'var(--shadow-card)' }}>
+              世界分布加载中…
+            </div>
+          )}
+          {!loading && !(activeRegion?.posts?.length) && (
+            <div style={{ background: '#fff', borderRadius: 14, padding: 14, fontSize: 12, color: '#888', boxShadow: 'var(--shadow-card)' }}>
+              该地区暂时还没有可展示的梗图样本。
+            </div>
+          )}
+          {activeRegion?.posts?.map(post => (
+            <div key={post.id} style={{ background: '#fff', borderRadius: 16, padding: 10, marginBottom: 8, boxShadow: 'var(--shadow-card)' }}>
+              <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
+                <div style={{ width: 58, height: 58, borderRadius: 12, overflow: 'hidden', flexShrink: 0 }}>
+                  <MemeArtwork assetPath={post.thumbnailUrl || post.assetPath} label={post.memeLabel} aspect="1/1" bg={post.bg}/>
+                </div>
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div style={{ fontSize: 13, fontWeight: 700, lineHeight: 1.5, whiteSpace: 'pre-line' }}>{post.caption}</div>
+                  <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', fontSize: 11, color: '#888', marginTop: 6 }}>
+                    <span>@{post.author}</span>
+                    <span>😂 {post.stats?.laugh || 0}</span>
+                    <span>{post.sourceLabel || post.source}</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ========== screen-game.jsx ==========
+function GameScreen({ onProfileSync, points, level, persona, onOpenGen, onOpenPlaza }) {
+  const [profile, setProfile] = React.useState(null);
+  const [loading, setLoading] = React.useState(true);
+  const [panel, setPanel] = React.useState('profile');
+  const [mode, setMode] = React.useState('fill');
+  const [view, setView] = React.useState('menu');
+  const [currentLevel, setCurrentLevel] = React.useState(0);
+  const [answer, setAnswer] = React.useState('');
+  const [timeLeft, setTimeLeft] = React.useState(30);
+  const [scoring, setScoring] = React.useState(false);
+  const [result, setResult] = React.useState(null);
+  const [levels, setLevels] = React.useState(GAME_LEVELS);
+  const [heatmap, setHeatmap] = React.useState([]);
+  const [resultLevel, setResultLevel] = React.useState(null);
+
+  React.useEffect(() => {
+    let alive = true;
+    setLoading(true);
+    Promise.all([
+      window.MemeLabAPI.getMyProfile().catch(() => null),
+      window.MemeLabAPI.getGameLevels().catch(() => null),
+    ])
+      .then(([profileData, gameData]) => {
+        if (!alive) return;
+        if (profileData?.profile) setProfile(profileData.profile);
+        if (gameData?.gameLevels?.length) setLevels(gameData.gameLevels);
+        if (gameData?.heatmap?.length) setHeatmap(gameData.heatmap);
+      })
+      .finally(() => alive && setLoading(false));
+    return () => { alive = false; };
+  }, []);
+
+  const modeLevels = levels.filter(item => item.mode === mode);
+  const activeLevel = modeLevels[currentLevel] || modeLevels[0] || GAME_LEVELS[0];
+
+  React.useEffect(() => {
+    if (view !== 'playing' || scoring) return;
+    if (timeLeft <= 0) { submit(); return; }
+    const timer = setTimeout(() => setTimeLeft(v => v - 1), 1000);
+    return () => clearTimeout(timer);
+  }, [view, timeLeft, scoring, mode, currentLevel]);
+
+  const summary = profile || {
+    userName: '梗员01',
+    avatar: '🐶',
+    bio: '本人主页 · 正在把真实梗图和真实互动都卷起来',
+    counts: { posts: 0, followers: 0, following: 0, liked: 0 },
+    posts: [],
+    recentComments: [],
+  };
+
+  function startGame(nextMode = mode, nextIndex = 0) {
+    setMode(nextMode);
+    setCurrentLevel(nextIndex);
+    setAnswer('');
+    setTimeLeft(30);
+    setResult(null);
+    setResultLevel(null);
+    setPanel('challenge');
+    setView('playing');
+  }
+
+  async function submit() {
+    if (scoring) return;
+    setScoring(true);
+    const userAns = answer.trim() || '（没写完）';
+    try {
+      const response = await window.MemeLabAPI.scoreGame({ mode, levelId: activeLevel.id, answer: userAns });
+      setResult(response.result);
+      setResultLevel(response.level || activeLevel);
+      if (response.heatmap?.length) setHeatmap(response.heatmap);
+      onProfileSync(response.profile, response.result?.grade?.startsWith('A') ? 15 : 5);
+    } catch (e) {
+      let parsed = { grade: 'B', humor: 70, contrast: 70, fit: 70, comment: '还行，下次更好', userAns };
+      try {
+        const prompt = `梗游戏评分。情境：「${activeLevel.setup}」，图是：${activeLevel.imagePrompt}。用户填的梗文案是：「${userAns}」。返回JSON：{"grade":"A+/A/B/C","humor":0-100,"contrast":0-100,"fit":0-100,"comment":"一句中文点评"}`;
+        const r = await window.MockClaude.complete(prompt);
+        const m = (r || '').match(/\{[\s\S]*\}/);
+        if (m) parsed = { ...parsed, ...JSON.parse(m[0]), userAns };
+      } catch (err) {}
+      setResult(parsed);
+      setResultLevel(activeLevel);
+      onProfileSync(null, parsed.grade?.startsWith('A') ? 15 : 5);
+    }
+    setScoring(false);
+    setView('result');
+  }
+
+  if (panel === 'challenge' && view === 'playing') {
+    return <PlayingView level={activeLevel} timeLeft={timeLeft} answer={answer}
+                        setAnswer={setAnswer} onSubmit={submit} scoring={scoring}
+                        onBack={() => { setPanel('challenge'); setView('menu'); }}/>;
+  }
+  if (panel === 'challenge' && view === 'result') {
+    return <ResultView level={resultLevel || activeLevel} result={result}
+                       onNext={() => startGame(mode, (currentLevel + 1) % Math.max(1, modeLevels.length))}
+                       onBack={() => setView('menu')}/>;
+  }
+
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', height: '100%', background: '#FAFAFB' }}>
+      <div style={{ padding: '10px 18px 6px' }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 12 }}>
+          <div>
+            <div style={{ fontSize: 28, fontWeight: 800 }}>我的主页</div>
+            <div style={{ fontSize: 12, color: '#888', marginTop: 4 }}>个人状态、我发的、我的高赞评论，以及原来的梗挑战入口。</div>
+          </div>
+          <button onClick={() => onOpenGen({ mode: 'text' })} style={{
+            padding: '8px 14px', borderRadius: 999, background: '#1A1A1A',
+            color: '#fff', fontSize: 12, fontWeight: 700, flexShrink: 0,
+          }}>发梗</button>
+        </div>
+        <div style={{ display: 'flex', gap: 8, marginTop: 12 }}>
+          <button onClick={() => { setPanel('profile'); setView('menu'); }} style={{
+            flex: 1, padding: '9px 10px', borderRadius: 999,
+            background: panel === 'profile' ? '#1A1A1A' : '#F0F0F0',
+            color: panel === 'profile' ? '#fff' : '#666', fontSize: 12, fontWeight: 700,
+          }}>我的主页</button>
+          <button onClick={() => { setPanel('challenge'); setView('menu'); }} style={{
+            flex: 1, padding: '9px 10px', borderRadius: 999,
+            background: panel === 'challenge' ? '#1A1A1A' : '#F0F0F0',
+            color: panel === 'challenge' ? '#fff' : '#666', fontSize: 12, fontWeight: 700,
+          }}>梗挑战</button>
+        </div>
+      </div>
+
+      <div className="no-scroll" style={{ flex: 1, overflowY: 'auto', padding: '10px 16px 110px' }}>
+        {panel === 'profile' ? (
+          <>
+            <div style={{ background: '#fff', borderRadius: 20, padding: 16, boxShadow: 'var(--shadow-card)' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                <div style={{
+                  width: 56, height: 56, borderRadius: '50%', background: '#F0EBFA',
+                  display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 28, flexShrink: 0,
+                }}>{summary.avatar}</div>
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div style={{ fontSize: 18, fontWeight: 800 }}>@{summary.userName}</div>
+                  <div style={{ fontSize: 12, color: '#888', marginTop: 4, lineHeight: 1.5 }}>{summary.bio}</div>
+                </div>
+              </div>
+              <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginTop: 12 }}>
+                <Badge accent="purple">{level}</Badge>
+                <Badge accent="amber">梗值 {points}</Badge>
+                <Badge accent="blue">{persona.name}</Badge>
+              </div>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 8, marginTop: 14 }}>
+                <MiniStat value={summary.counts?.following || 0} label="关注"/>
+                <MiniStat value={summary.counts?.followers || 0} label="粉丝"/>
+                <MiniStat value={summary.counts?.posts || 0} label="发帖"/>
+                <MiniStat value={summary.counts?.liked || 0} label="获赞"/>
+              </div>
+            </div>
+
+            <div style={{ display: 'flex', gap: 8, marginTop: 14 }}>
+              <button onClick={() => onOpenPlaza()} style={{
+                flex: 1, padding: '12px 10px', borderRadius: 16, background: '#fff',
+                boxShadow: 'var(--shadow-card)', fontSize: 13, fontWeight: 700,
+              }}>去广场看看</button>
+              <button onClick={() => onOpenGen({ mode: 'text' })} style={{
+                flex: 1, padding: '12px 10px', borderRadius: 16, background: 'linear-gradient(135deg, #F0EBFA, #E8E0F5)',
+                boxShadow: 'var(--shadow-card)', fontSize: 13, fontWeight: 700, color: 'var(--purple)',
+              }}>继续发梗</button>
+            </div>
+
+            <div style={{ marginTop: 18 }}>
+              <div style={{ fontSize: 12, fontWeight: 800, color: '#666', marginBottom: 8 }}>我发的</div>
+              {loading && !profile && (
+                <div style={{ background: '#fff', borderRadius: 14, padding: 14, fontSize: 12, color: '#888', boxShadow: 'var(--shadow-card)' }}>
+                  主页加载中…
+                </div>
+              )}
+              {!loading && !(summary.posts?.length) && (
+                <div style={{ background: '#fff', borderRadius: 14, padding: 14, fontSize: 12, color: '#888', boxShadow: 'var(--shadow-card)' }}>
+                  你还没发过内容，先去发一条占住首页气场。
+                </div>
+              )}
+              {summary.posts?.map(post => (
+                <div key={post.id} style={{
+                  background: '#fff', borderRadius: 16, padding: 10, marginBottom: 8, boxShadow: 'var(--shadow-card)',
+                }}>
+                  <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
+                    <div style={{ width: 56, height: 56, borderRadius: 12, overflow: 'hidden', flexShrink: 0 }}>
+                      <MemeArtwork assetPath={post.thumbnailUrl || post.assetPath} label={post.memeLabel} aspect="1/1" bg={post.bg}/>
+                    </div>
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <div style={{ fontSize: 13, fontWeight: 700, lineHeight: 1.5, whiteSpace: 'pre-line' }}>{post.caption}</div>
+                      <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', fontSize: 11, color: '#888', marginTop: 6 }}>
+                        <span>😂 {post.stats?.laugh || 0}</span>
+                        <span>💬 {post.stats?.comments || 0}</span>
+                        <span>{post.time}</span>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+
+            <div style={{ marginTop: 18 }}>
+              <div style={{ fontSize: 12, fontWeight: 800, color: '#666', marginBottom: 8 }}>我的热评</div>
+              {!loading && !(summary.recentComments?.length) && (
+                <div style={{ background: '#fff', borderRadius: 14, padding: 14, fontSize: 12, color: '#888', boxShadow: 'var(--shadow-card)' }}>
+                  暂时还没有高赞评论记录。
+                </div>
+              )}
+              {summary.recentComments?.map(item => (
+                <div key={item.id} style={{
+                  background: '#fff', borderRadius: 16, padding: 12, marginBottom: 8, boxShadow: 'var(--shadow-card)',
+                }}>
+                  <div style={{ fontSize: 14, lineHeight: 1.6 }}>{item.text}</div>
+                  <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', fontSize: 11, color: '#888', marginTop: 8 }}>
+                    {item.topPick && <Badge accent="amber">梗中梗</Badge>}
+                    <span>👍 {item.votes}</span>
+                    <span>原帖：{item.post?.caption?.replace(/\n/g, ' ').slice(0, 18)}...</span>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </>
+        ) : (
+          <>
+            <div className="grad-border amber" style={{ padding: 14 }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
+                <div>
+                  <div style={{ fontSize: 13, fontWeight: 700 }}>本周造梗活跃度</div>
+                  <div style={{ fontSize: 11, color: '#888', marginTop: 2 }}>原游戏内容保留，继续练关刷梗值</div>
+                </div>
+                <div style={{ fontSize: 20, fontWeight: 800, color: 'var(--amber)', fontFamily: 'var(--font-num)' }}>
+                  {points}<span style={{ fontSize: 11, color: '#888', marginLeft: 3 }}>梗值</span>
+                </div>
+              </div>
+              <Heatmap cells={heatmap}/>
+            </div>
+
+            <div style={{ paddingTop: 14, display: 'flex', flexDirection: 'column', gap: 10 }}>
+              <GameCard accent="purple" icon="✍️" title="填梗大师" desc="给图填文案，AI三维度打分"
+                        meta="30秒 · AI打分" onClick={() => startGame('fill')} primary/>
+              <GameCard accent="red" icon="🐱" title="看图写梗" desc="给你一张潜力图，写出最骚的 caption"
+                        meta="30秒 · 众评模式" onClick={() => startGame('caption')}/>
+              <GameCard accent="green" icon="🔗" title="梗接龙" desc="接下一棒，组成荒诞故事链"
+                        meta="多人异步" onClick={() => startGame('chain')}/>
+            </div>
+
+            <div style={{ marginTop: 18 }}>
+              <button onClick={() => startGame(mode)} style={{
+                width: '100%', padding: '14px', borderRadius: 16,
+                background: 'linear-gradient(135deg, #7B5EA7, #5A3E8A)', color: '#fff',
+                fontSize: 15, fontWeight: 800, boxShadow: 'var(--shadow-purple)',
+              }}>⚡ 开始挑战</button>
+            </div>
+          </>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function Heatmap({ cells = [] }) {
+  const palette = ['#F0F0F0', '#FAD9B0', '#F5A623', '#E07B00', '#B85C00'];
+  const safeCells = cells.length ? cells : Array.from({ length: 56 }).map(() => Math.floor(Math.random() * 4));
+  return (
+    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(14, 1fr)', gap: 3 }}>
+      {safeCells.map((c, i) => (
+        <div key={i} style={{ aspectRatio: '1', background: palette[c] || palette[0], borderRadius: 4 }}/>
+      ))}
+    </div>
+  );
+}
+
+function GameCard({ accent, icon, title, desc, meta, onClick, primary }) {
+  const bgColors = { purple: '#EEE6FA', red: '#FDE6E4', green: '#DFF4E7' };
+  return (
+    <button onClick={onClick} className={`grad-border ${accent}`} style={{
+      padding: '14px 16px', textAlign: 'left', display: 'flex', alignItems: 'center', gap: 12,
+    }}>
+      <div style={{
+        width: 48, height: 48, borderRadius: '50%', background: bgColors[accent],
+        display: 'flex', alignItems: 'center', justifyContent: 'center',
+        fontSize: 24, flexShrink: 0,
+      }}>{icon}</div>
+      <div style={{ flex: 1 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+          <div style={{ fontSize: 15, fontWeight: 700 }}>{title}</div>
+          {primary && <span style={{ fontSize: 9, fontWeight: 700, color: '#fff', background: 'var(--red)', padding: '2px 6px', borderRadius: 999 }}>HOT</span>}
+        </div>
+        <div style={{ fontSize: 12, color: '#666', marginTop: 3 }}>{desc}</div>
+        <div style={{ fontSize: 10, color: '#AAA', marginTop: 4 }}>{meta}</div>
+      </div>
+      <span style={{ color: '#BBB', fontSize: 20 }}>›</span>
+    </button>
+  );
+}
+
+function PlayingView({ level, timeLeft, answer, setAnswer, onSubmit, scoring, onBack }) {
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', height: '100%', background: '#FAFAFB', padding: '10px 16px 16px' }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+          <button onClick={onBack} style={{
+            width: 32, height: 32, borderRadius: '50%', background: '#F0F0F0',
+            display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 16,
+          }}>‹</button>
+          <div style={{ fontSize: 14, fontWeight: 700 }}>{level.title} · 第 {String(level.id).split('-').pop()} 关</div>
+        </div>
+        <div style={{
+          fontSize: 20, fontWeight: 800, color: timeLeft <= 10 ? 'var(--red)' : 'var(--text-primary)',
+          fontFamily: 'var(--font-num)',
+        }}>⏱ {timeLeft}s</div>
+      </div>
+
+      <div style={{
+        background: 'linear-gradient(135deg, #FFF7E6, #FDE6D9)',
+        padding: '12px 16px', borderRadius: 14,
+        fontSize: 13, lineHeight: 1.5, marginBottom: 10,
+      }}>
+        <div style={{ fontSize: 11, fontWeight: 700, color: '#8B6914', marginBottom: 4 }}>情境</div>
+        {level.setup}
+      </div>
+
+      <div style={{ flex: 1, minHeight: 0, marginBottom: 10 }}>
+        <div style={{ height: '100%', borderRadius: 16, overflow: 'hidden' }}>
+          <MemePlaceholder label={level.imagePrompt + '\n（给图填一句文案）'} aspect="auto" bg="#F5F3EE"/>
+        </div>
+      </div>
+
+      <textarea
+        value={answer}
+        onChange={e => setAnswer(e.target.value)}
+        placeholder={level.placeholder || '你的梗文案…（15字内最佳）'}
+        maxLength={30}
+        style={{
+          width: '100%', padding: 12, border: '2px solid #EDEDED', borderRadius: 14,
+          fontSize: 14, fontFamily: 'inherit', outline: 'none', resize: 'none',
+          minHeight: 60,
+        }}
+      />
+      <button onClick={onSubmit} disabled={scoring} style={{
+        marginTop: 10, padding: '14px', borderRadius: 14,
+        background: scoring ? '#DDD' : 'linear-gradient(135deg, #7B5EA7, #5A3E8A)',
+        color: '#fff', fontSize: 15, fontWeight: 800,
+        boxShadow: 'var(--shadow-purple)',
+      }}>{scoring ? '梗王评审中…' : '提交给AI评审 🎯'}</button>
+    </div>
+  );
+}
+
+function ResultView({ level, result, onNext, onBack }) {
+  if (!result) return null;
+  const gradeColors = {
+    'A+': { bg: 'linear-gradient(135deg, #FFD700, #FF6B6B)', fg: '#fff' },
+    'A': { bg: 'linear-gradient(135deg, #52C17A, #2E9E59)', fg: '#fff' },
+    'B': { bg: 'linear-gradient(135deg, #4A8FE7, #2E6FCC)', fg: '#fff' },
+    'C': { bg: 'linear-gradient(135deg, #AAA, #777)', fg: '#fff' },
+  };
+  const gc = gradeColors[result.grade] || gradeColors.B;
+  const isGood = result.grade?.startsWith('A');
+
+  return (
+    <div className="fade-in" style={{ display: 'flex', flexDirection: 'column', height: '100%', background: '#FAFAFB', padding: '14px 16px' }}>
+      <div style={{ textAlign: 'center', marginBottom: 10 }}>
+        <div className="pop-in" style={{
+          display: 'inline-block', background: gc.bg, color: gc.fg,
+          padding: '12px 32px', borderRadius: 999,
+          fontSize: 28, fontWeight: 900,
+          boxShadow: '0 8px 24px rgba(0,0,0,0.15)',
+        }}>{result.grade}</div>
+        <div style={{ fontSize: 14, fontWeight: 700, marginTop: 10 }}>
+          {isGood ? '🎉 梗中梗！' : '🫠 这梗王还得练'}
+        </div>
+      </div>
+
+      <div style={{ background: '#fff', borderRadius: 14, padding: 14, boxShadow: 'var(--shadow-card)', marginBottom: 10 }}>
+        <div style={{ fontSize: 10, color: '#888', fontWeight: 700, marginBottom: 4 }}>你写的</div>
+        <div style={{ fontSize: 15, fontWeight: 700 }}>{result.userAns}</div>
+      </div>
+
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 8, marginBottom: 10 }}>
+        <ScoreBar label="幽默度" value={result.humor} color="var(--red)"/>
+        <ScoreBar label="反差度" value={result.contrast} color="var(--blue)"/>
+        <ScoreBar label="契合度" value={result.fit} color="var(--green)"/>
+      </div>
+
+      <div style={{
+        background: '#F0EBFA', borderRadius: 14, padding: 12,
+        display: 'flex', alignItems: 'flex-start', gap: 10, marginBottom: 10,
+      }}>
+        <div style={{ flexShrink: 0 }}>
+          <DogeAvatar size={36} expression="smirk"/>
+        </div>
+        <div>
+          <div style={{ fontSize: 10, fontWeight: 700, color: 'var(--purple)' }}>梗王点评</div>
+          <div style={{ fontSize: 13, marginTop: 3 }}>{result.comment}</div>
+          {result.source && (
+            <div style={{ fontSize: 10, color: '#888', marginTop: 6 }}>
+              {result.source === 'modelscope' ? 'Kimi-K2.5 实时评分' : '本地兜底评分'}
+            </div>
+          )}
+        </div>
+      </div>
+
+      <div style={{ fontSize: 11, fontWeight: 700, color: '#888', margin: '4px 0 8px' }}>本关 TOP 答案</div>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+        {level.topAnswers.map((a, i) => (
+          <div key={i} style={{
+            background: '#fff', borderRadius: 12, padding: '10px 12px',
+            display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+            fontSize: 12,
+          }}>
+            <span>{a.text}</span>
+            <span style={{ color: 'var(--green)', fontWeight: 700 }}>{a.score} · {a.votes}👍</span>
+          </div>
+        ))}
+      </div>
+
+      <div style={{ flex: 1 }}/>
+
+      <div style={{ display: 'flex', gap: 8 }}>
+        <button onClick={onBack} style={{
+          flex: 1, padding: 12, borderRadius: 12, background: '#F0F0F0', fontSize: 13, fontWeight: 700,
+        }}>返回</button>
+        <button onClick={onNext} style={{
+          flex: 2, padding: 12, borderRadius: 12,
+          background: 'var(--purple)', color: '#fff', fontSize: 13, fontWeight: 700,
+        }}>下一关 ›</button>
+      </div>
+    </div>
+  );
+}
+
+function ScoreBar({ label, value, color }) {
+  return (
+    <div style={{ background: '#fff', borderRadius: 12, padding: '10px 10px 8px' }}>
+      <div style={{ fontSize: 10, color: '#888', fontWeight: 600 }}>{label}</div>
+      <div style={{ fontSize: 20, fontWeight: 800, color, fontFamily: 'var(--font-num)', marginTop: 2 }}>{value}</div>
+      <div style={{ height: 4, background: '#F0F0F0', borderRadius: 2, marginTop: 4, overflow: 'hidden' }}>
+        <div style={{ height: '100%', width: `${value}%`, background: color, borderRadius: 2, transition: 'width 0.6s' }}/>
+      </div>
+    </div>
+  );
+}
+
+// ========== App ==========
+function App() {
+  const [tab, setTab] = React.useState('plaza');
+  const [persona, setPersonaState] = React.useState(PERSONAS.default);
+  const [points, setPoints] = React.useState(185);
+  const [level, setLevel] = React.useState('🥇 黄金梗师');
+  const [pointFloat, setPointFloat] = React.useState(null);
+  const [genIntent, setGenIntent] = React.useState(null);
+
+  React.useEffect(() => {
+    let alive = true;
+    window.MemeLabAPI.getBootstrap()
+      .then(data => {
+        if (!alive || !data?.profile) return;
+        syncProfile(data.profile, 0);
+        if (data.profile.personaKey && PERSONAS[data.profile.personaKey]) {
+          setPersonaState(PERSONAS[data.profile.personaKey]);
+        }
+      })
+      .catch(() => {});
+    return () => { alive = false; };
+  }, []);
+
+  function setPersona(p) { setPersonaState(p); }
+
+  function showPointFloat(n) {
+    if (!n) return;
+    const id = Date.now();
+    setPointFloat({ n, id });
+    setTimeout(() => setPointFloat(f => f && f.id === id ? null : f), 1200);
+  }
+
+  function syncProfile(profile, fallbackGain = 0) {
+    if (profile && typeof profile.points === 'number') {
+      setPoints(prev => {
+        const delta = profile.points - prev;
+        if (delta) showPointFloat(delta);
+        return profile.points;
+      });
+      if (profile.level) setLevel(profile.level);
+      if (profile.personaKey && PERSONAS[profile.personaKey]) setPersonaState(PERSONAS[profile.personaKey]);
+      return;
+    }
+    if (fallbackGain) {
+      setPoints(prev => prev + fallbackGain);
+      showPointFloat(fallbackGain);
+    }
+  }
+
+  function openGen(intent) {
+    setGenIntent({ ...(intent || {}), stamp: Date.now() });
+    setTab('gen');
+  }
+
+  const tabs = [
+    { key: 'king', label: '梗王', icon: '🤴' },
+    { key: 'world', label: '世界', icon: '🌍' },
+    { key: 'plaza', label: '广场', icon: '🔥', center: true },
+    { key: 'gen', label: '造梗', icon: '✨' },
+    { key: 'game', label: '我的', icon: '👤' },
+  ];
+
+  const screen = (() => {
+    if (tab === 'king') return <MemeKingHome persona={persona} setPersona={setPersona}
+                                              onProfileSync={syncProfile} points={points} level={level}/>;
+    if (tab === 'world') return <WorldScreen onOpenGen={openGen} onOpenPlaza={() => setTab('plaza')}/>;
+    if (tab === 'plaza') return <Plaza onProfileSync={syncProfile} onOpenGen={openGen}/>;
+    if (tab === 'gen') return <Generator onProfileSync={syncProfile} goBack={() => setTab('plaza')}
+                                         onOpenPlaza={() => setTab('plaza')} initialIntent={genIntent} level={level}/>;
+    if (tab === 'game') return <GameScreen onProfileSync={syncProfile} points={points} level={level} persona={persona} onOpenGen={openGen}
+                                           onOpenPlaza={() => setTab('plaza')}/>;
+  })();
+
+  return (
+    <div style={{
+      minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center',
+      padding: '24px', gap: 40,
+      background: 'radial-gradient(circle at 30% 20%, #F2EDFB, #E9E9EE 60%)',
+    }}>
+      <div style={{ position: 'relative' }}>
+        <IOSDevice width={398} height={820} dark={false}>
+          <div style={{ position: 'relative', height: '100%', paddingTop: 52, background: '#FAFAFB' }}>
+            <div style={{ height: 'calc(100% - 72px)', overflow: 'hidden', position: 'relative' }}>
+              {screen}
+            </div>
+            <TabBar tabs={tabs} current={tabs.some(item => item.key === tab) ? tab : 'plaza'} onChange={setTab}/>
+            {pointFloat && <PointFloat n={pointFloat.n} show={true}/>}
+          </div>
+        </IOSDevice>
+
+        <div style={{ textAlign: 'center', marginTop: 16, fontSize: 12, color: '#888', letterSpacing: 1 }}>
+          造梗局 · MEMELAB PROTOTYPE
+        </div>
+      </div>
+
+      <SideInfo tab={tab} points={points} persona={persona} setPersona={setPersona} level={level}/>
+    </div>
+  );
+}
+
+function TabBar({ tabs, current, onChange }) {
+  return (
+    <div style={{
+      position: 'absolute', bottom: 0, left: 0, right: 0,
+      height: 72,
+      background: '#fff',
+      borderTop: '1px solid #EEE',
+      boxShadow: '0 -2px 12px rgba(0,0,0,0.04)',
+      display: 'grid', gridTemplateColumns: '1fr 1fr 1.25fr 1fr 1fr',
+      alignItems: 'center', padding: '0 14px 12px', zIndex: 20,
+    }}>
+      {tabs.map(t => {
+        const active = current === t.key;
+        return (
+          <button key={t.key} onClick={() => onChange(t.key)} style={{
+            justifySelf: t.center ? 'center' : 'stretch',
+            display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6,
+            padding: active ? (t.center ? '10px 18px' : '8px 12px') : (t.center ? '9px 16px' : '8px 10px'),
+            borderRadius: 999,
+            background: active ? '#1A1A1A' : 'transparent',
+            color: active ? '#fff' : '#AAA',
+            minWidth: t.center ? 96 : 0,
+            transition: 'all 0.25s cubic-bezier(0.34, 1.56, 0.64, 1)',
+          }}>
+            <span style={{ fontSize: t.center ? 19 : 18 }}>{t.icon}</span>
+            {active && <span style={{ fontSize: 12, fontWeight: 700 }}>{t.label}</span>}
+          </button>
+        );
+      })}
+    </div>
+  );
+}
+
+function SideInfo({ tab, points, persona, setPersona, level }) {
+  const [hide, setHide] = React.useState(typeof window !== 'undefined' && window.innerWidth < 900);
+  React.useEffect(() => {
+    function onResize() { setHide(window.innerWidth < 900); }
+    window.addEventListener('resize', onResize);
+    return () => window.removeEventListener('resize', onResize);
+  }, []);
+
+  const titles = {
+    king: { t: '梗王智能体', d: '首页对话，AI真实生成。点🎭换人格（默认/东北/文言）。' },
+    world: { t: '世界梗图分布', d: '新增独立世界页，用 3D 球体查看梗图在全球的传播和地区样本。' },
+    plaza: { t: '刷梗广场', d: '默认首页切到广场，精简头部信息，但保留关系链筛选、帖子流和发布入口。' },
+    gen: { t: '梗图生成', d: '一句话生3张候选。AI真实生成文案，模板随机配。' },
+    game: { t: '个人主页 + 梗挑战', d: '个人主页搬进该页，但原来的游戏挑战内容完整保留，以分段模式共存。' },
+  };
+  const info = titles[tab];
+  if (hide) return null;
+  return (
+    <div style={{ maxWidth: 300, fontFamily: 'var(--font-cn)' }}>
+      <div style={{ fontSize: 11, color: '#999', letterSpacing: 2, fontWeight: 700 }}>CURRENT SCREEN</div>
+      <div style={{ fontSize: 26, fontWeight: 900, marginTop: 4, lineHeight: 1.15 }}>{info.t}</div>
+      <div style={{ fontSize: 13, color: '#555', marginTop: 8, lineHeight: 1.5 }}>{info.d}</div>
+
+      <div style={{ marginTop: 24, padding: 16, background: '#fff', borderRadius: 16,
+                    boxShadow: '0 2px 8px rgba(0,0,0,0.06)' }}>
+        <div style={{ fontSize: 10, color: '#888', fontWeight: 700, letterSpacing: 0.5 }}>MY STATUS</div>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginTop: 10 }}>
+          <div style={{ width: 44, height: 44, borderRadius: '50%', background: '#F0EBFA',
+                        display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 22 }}>🐶</div>
+          <div>
+            <div style={{ fontSize: 14, fontWeight: 800 }}>@梗员01</div>
+            <div style={{ fontSize: 11, color: '#888' }}>{level} · {persona.name}</div>
+          </div>
+        </div>
+        <div style={{ marginTop: 12, display: 'flex', justifyContent: 'space-between', fontSize: 12 }}>
+          <div>
+            <div style={{ color: '#888' }}>梗值</div>
+            <div style={{ fontSize: 20, fontWeight: 800, color: 'var(--amber)', fontFamily: 'var(--font-num)' }}>{points}</div>
+          </div>
+          <div>
+            <div style={{ color: '#888' }}>距铂金</div>
+            <div style={{ fontSize: 20, fontWeight: 800, color: 'var(--blue)', fontFamily: 'var(--font-num)' }}>{Math.max(0, 300 - points)}</div>
+          </div>
+          <div>
+            <div style={{ color: '#888' }}>今日</div>
+            <div style={{ fontSize: 20, fontWeight: 800, color: 'var(--green)', fontFamily: 'var(--font-num)' }}>A级</div>
+          </div>
+        </div>
+      </div>
+
+      <div style={{ marginTop: 16, padding: 14, background: '#fff', borderRadius: 14,
+                    boxShadow: '0 2px 8px rgba(0,0,0,0.06)' }}>
+        <div style={{ fontSize: 11, fontWeight: 700, color: '#666', marginBottom: 8 }}>🎛️ 梗王人格</div>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+          {Object.values(PERSONAS).map(p => (
+            <button key={p.key} onClick={() => setPersona(p)} style={{
+              textAlign: 'left', padding: '8px 10px',
+              background: persona.key === p.key ? '#F0EBFA' : '#F7F7F8',
+              border: persona.key === p.key ? '1.5px solid var(--purple)' : '1.5px solid transparent',
+              borderRadius: 10, fontSize: 12,
+            }}>
+              <div style={{ fontWeight: 700 }}>{p.name}</div>
+              <div style={{ fontSize: 10, color: '#888', marginTop: 2 }}>{p.subtitle}</div>
+            </button>
+          ))}
+        </div>
+      </div>
+
+      <div style={{ marginTop: 16, fontSize: 11, color: '#AAA', lineHeight: 1.5 }}>
+        💡 点击🎭图标或右侧面板切换梗王人格。<br/>
+        ✨ 梗王对话 · 广场互动 · 梗图生成 · 游戏评分 现已接入真实后端接口。
+      </div>
+    </div>
+  );
+}
+
+ReactDOM.createRoot(document.getElementById('root')).render(<App/>);
+</script>
+
+</body>
+</html>

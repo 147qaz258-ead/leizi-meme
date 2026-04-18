@@ -1,0 +1,13 @@
+.vercel
+node_modules
+__pycache__
+*.pyc
+.pyo
+*.zip
+微信图片_*.jpg
+uploads/
+generated_memes/
+动物梗图/
+design_extract/
+railway.exe
+.nixpacks
