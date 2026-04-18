@@ -44,8 +44,8 @@ STATE_FILE = ROOT / "backend_state.json"
 COMMUNITY_DB = ROOT / "community.db"
 GENERATED_DIR = ROOT / "generated_memes"
 MEME_PROMPT_FILE = ROOT / "梗图生成prompt.txt"
-HOST = os.environ.get("MEMELAB_HOST", "127.0.0.1")
-PORT = int(os.environ.get("MEMELAB_PORT", "8765"))
+HOST = os.environ.get("MEMELAB_HOST", os.environ.get("HOST", "0.0.0.0"))
+PORT = int(os.environ.get("PORT", os.environ.get("MEMELAB_PORT", "8080")))
 
 STATE_LOCK = threading.Lock()
 
@@ -415,6 +415,14 @@ COMMUNITY_COMMENTERS = [
     ("精神离职办", "💤"),
     ("冷笑话储备库", "🧊"),
 ]
+AI_COMMENT_BOTS = [
+    ("ai_bot_01", "AI班味监测员", "📡"),
+    ("ai_bot_02", "AI哈基米路人", "🍯"),
+    ("ai_bot_03", "AI工位嘴替", "🫠"),
+    ("ai_bot_04", "AI电子吗喽", "🐒"),
+    ("ai_bot_05", "AI下班计时器", "⏰"),
+]
+AUTO_AI_COMMENT_LIMIT = 3
 COMMUNITY_VARIANTS = [
     {"template": "狗头保命", "accent": "amber", "open": "看到这张图，我只想说", "close": "别问，问就是工位显灵了"},
     {"template": "那咋了", "accent": "blue", "open": "同事把这图发群里那一刻", "close": "我当场进入那咋了防御模式"},
@@ -1707,6 +1715,7 @@ def insert_generated_post(profile: dict, meme: dict) -> dict:
             row,
         )
         conn.commit()
+    generate_sequential_ai_comments_for_post(post_id, row, limit=AUTO_AI_COMMENT_LIMIT)
     return get_community_post_payload(post_id) or row
 
 
@@ -2048,6 +2057,126 @@ def build_comment_suggestions(caption: str) -> list[str]:
 def sanitize_text(text: str) -> str:
     cleaned = re.sub(r"\s+", " ", (text or "").strip())
     return cleaned[:80]
+
+
+def normalize_ai_comment_text(text: str) -> str:
+    cleaned = clean_text(text)
+    cleaned = re.sub(r"^\s*(评论|回复|梗评|AI)\s*[：:]\s*", "", cleaned, flags=re.IGNORECASE)
+    cleaned = re.sub(r"^[\"'“”‘’]+|[\"'“”‘’]+$", "", cleaned)
+    cleaned = re.sub(r"\s+", " ", cleaned).strip(" -")
+    return cleaned[:24]
+
+
+def auto_comment_fallbacks(post_data: dict) -> list[str]:
+    caption = clean_text(post_data.get("caption"))
+    meme_label = clean_text(str(post_data.get("meme_label") or "").splitlines()[0])
+    template = clean_text(post_data.get("template"))
+    pool = build_comment_suggestions(" ".join(part for part in [caption, meme_label] if part))
+    extras = []
+    if template:
+        extras.extend(
+            [
+                f"{template}味儿对了",
+                f"{template}本人路过",
+            ]
+        )
+    if any(token in caption for token in ["上班", "老板", "工位", "KPI"]):
+        extras.extend(["这不是梗，这是监控回放", "班味已经溢出屏幕了"])
+    if any(token in caption for token in ["哈基米", "猫", "狗", "吗喽"]):
+        extras.extend(["哈基米都看乐了", "这波动物系发言成立"])
+    unique = []
+    for item in extras + pool:
+        normalized = normalize_ai_comment_text(item)
+        if normalized and normalized not in unique:
+            unique.append(normalized)
+    return unique
+
+
+def generate_ai_comment_text(post_data: dict, existing_texts: list[str], slot_index: int) -> str:
+    fallback_pool = auto_comment_fallbacks(post_data)
+    if HAS_ANTHROPIC and MODELSCOPE_API_KEY:
+        try:
+            system_prompt = (
+                "你是中文梗社区里的路人评论员。"
+                "你要像真人一样对帖子留一句梗评。"
+                "只输出 1 句中文评论，不要解释，不要编号，不要引号，不超过 18 个汉字或 24 个字符。"
+                "允许 0-2 个 emoji，语气要像互联网热评，能调侃但不能攻击。"
+            )
+            user_prompt = (
+                f"帖子文案：{post_data.get('caption', '')}\n"
+                f"梗图标题：{str(post_data.get('meme_label', '')).splitlines()[0]}\n"
+                f"模板：{post_data.get('template', '')}\n"
+                f"已经有人评论过：{json.dumps(existing_texts[-6:], ensure_ascii=False)}\n"
+                f"请生成第 {slot_index + 1} 条新评论，必须和已有评论明显不同。"
+            )
+            raw = modelscope_text_completion(system_prompt, user_prompt, max_tokens=120)
+            for line in re.split(r"[\r\n]+", raw or ""):
+                candidate = normalize_ai_comment_text(line)
+                if candidate and candidate not in existing_texts:
+                    return candidate
+        except Exception:
+            pass
+    for candidate in fallback_pool:
+        if candidate not in existing_texts:
+            return candidate
+    return normalize_ai_comment_text(f"这梗有点东西 {slot_index + 1}")
+
+
+def generate_sequential_ai_comments_for_post(post_id: str, post_data: dict, limit: int = AUTO_AI_COMMENT_LIMIT) -> int:
+    with db_connect() as conn:
+        existing_rows = conn.execute(
+            "SELECT source_comment_id, text FROM comments WHERE post_id = ? ORDER BY datetime(created_at) ASC",
+            (post_id,),
+        ).fetchall()
+        existing_auto = [
+            row for row in existing_rows if str(row["source_comment_id"] or "").startswith("auto-ai-")
+        ]
+        if len(existing_auto) >= limit:
+            return 0
+
+        existing_texts = []
+        for row in existing_rows:
+            normalized = normalize_ai_comment_text(row["text"])
+            if normalized and normalized not in existing_texts:
+                existing_texts.append(normalized)
+
+        inserted_count = 0
+        for idx in range(len(existing_auto), limit):
+            bot_id, bot_name, bot_avatar = AI_COMMENT_BOTS[idx % len(AI_COMMENT_BOTS)]
+            ensure_user(conn, bot_id, bot_name, bot_avatar, "AI 互动分身", 1)
+            text = generate_ai_comment_text(post_data, existing_texts, idx)
+            if not text:
+                continue
+            conn.execute(
+                """
+                INSERT OR IGNORE INTO comments (
+                    id, post_id, source_comment_id, author_id, author_name, author_avatar,
+                    text, votes, top_pick, is_external, created_at
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, 0, ?, 0, ?)
+                """,
+                (
+                    f"{post_id}-auto-{idx + 1}",
+                    post_id,
+                    f"auto-ai-{idx + 1}",
+                    bot_id,
+                    bot_name,
+                    bot_avatar,
+                    text,
+                    1 if idx == 0 else 0,
+                    (now_local() + timedelta(seconds=idx + 1)).isoformat(timespec="seconds"),
+                ),
+            )
+            inserted_count += 1
+            existing_texts.append(text)
+
+        if inserted_count:
+            total_local_comments = conn.execute(
+                "SELECT COUNT(*) AS c FROM comments WHERE post_id = ? AND is_external = 0",
+                (post_id,),
+            ).fetchone()["c"]
+            conn.execute("UPDATE posts SET local_comments = ? WHERE id = ?", (int(total_local_comments), post_id))
+        conn.commit()
+        return inserted_count
 
 
 def choose_templates(template_name: str | None, count: int = 3) -> list[dict]:
