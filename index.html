@@ -167,7 +167,7 @@ button { font-family: inherit; cursor: pointer; border: none; background: none; 
 
 <script>
 (function () {
-  const API_ORIGIN = window.location.protocol === 'file:' ? 'http://127.0.0.1:8765' : window.location.origin;
+  const API_ORIGIN = window.location.protocol === 'file:' ? 'http://127.0.0.1:8765' : 'https://leizi-meme-production.up.railway.app';
   const kingReplies = [
     '那咋了 🫠 累就累了，打工人的尊严不就是一瓶肥宅快乐水吗',
     '班味浓到能腌菜了家人们 🥬 建议下班对着天花板骂三分钟再睡',
@@ -1946,7 +1946,7 @@ function GenResults({ results, activeIdx, setActiveIdx, originalInput, onRegen, 
       </div>
 
       <div style={{ display: 'flex', gap: 8, marginTop: 16 }}>
-        <ExitBtn icon="🚀" label={actionLoading === 'publish' ? '发布中…' : '发到广场'} accent="red" onClick={onPublish} disabled={!!actionLoading}/>
+        <ExitBtn icon="🚀" label={actionLoading === 'publish' ? '发布并召唤评论中…' : '发到广场'} accent="red" onClick={onPublish} disabled={!!actionLoading}/>
         <ExitBtn icon="💬" label={actionLoading === 'review' ? '点评中…' : '给梗王看'} accent="purple" onClick={onReview} disabled={!!actionLoading}/>
         <ExitBtn icon="📥" label={actionLoading === 'share' ? '准备中…' : '保存/分享'} accent="blue" onClick={onShare} disabled={!!actionLoading}/>
       </div>
