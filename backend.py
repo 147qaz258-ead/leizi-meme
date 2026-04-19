@@ -878,6 +878,11 @@ def seed_follow_graph(conn: sqlite3.Connection) -> None:
 
 def ensure_seed_posts(conn: sqlite3.Connection) -> None:
     """将预设的中国梗数据插入数据库，作为内置内容优先显示"""
+    # 先检查是否已有内置数据
+    existing = conn.execute("SELECT COUNT(*) AS c FROM posts WHERE source_platform = 'builtin-seed'").fetchone()["c"]
+    if existing >= len(SEED_POSTS):
+        return  # 已经有足够的数据了
+
     for index, post in enumerate(SEED_POSTS):
         post_id = post.get("id", f"seed-{index + 1}")
         author_name = post.get("author", "梗友")
@@ -919,9 +924,10 @@ def ensure_seed_posts(conn: sqlite3.Connection) -> None:
             "dedupe_key": hashlib.md5(f"seed:{post_id}".encode("utf-8")).hexdigest(),
         }
 
+        # 使用 INSERT OR IGNORE 确保不会重复插入
         conn.execute(
             """
-            INSERT INTO posts (
+            INSERT OR IGNORE INTO posts (
                 id, source_platform, source_id, source_url, community, author_id, author_name,
                 author_avatar, level, tag, caption, meme_label, bg, accent, asset_url, thumbnail_url,
                 media_type, template, source_label, created_at, external_laugh, external_comments,
@@ -932,26 +938,6 @@ def ensure_seed_posts(conn: sqlite3.Connection) -> None:
                 :media_type, :template, :source_label, :created_at, :external_laugh, :external_comments,
                 :external_shares, :nsfw, :raw_json, :dedupe_key
             )
-            ON CONFLICT(source_platform, source_id) DO UPDATE SET
-                author_id = excluded.author_id,
-                author_name = excluded.author_name,
-                author_avatar = excluded.author_avatar,
-                level = excluded.level,
-                tag = excluded.tag,
-                caption = excluded.caption,
-                meme_label = excluded.meme_label,
-                bg = excluded.bg,
-                accent = excluded.accent,
-                asset_url = excluded.asset_url,
-                thumbnail_url = excluded.thumbnail_url,
-                media_type = excluded.media_type,
-                template = excluded.template,
-                source_label = excluded.source_label,
-                created_at = excluded.created_at,
-                external_laugh = excluded.external_laugh,
-                external_comments = excluded.external_comments,
-                external_shares = excluded.external_shares,
-                raw_json = excluded.raw_json
             """,
             post_row,
         )

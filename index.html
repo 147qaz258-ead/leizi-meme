@@ -2,8 +2,9 @@
 <html lang="zh-CN">
 <head>
 <meta charset="UTF-8">
-<title>造梗局 · MemeLab 高保真原型</title>
+<title>“梗”社区 Meme Community</title>
 <meta name="viewport" content="width=device-width, initial-scale=1">
+<link rel="icon" type="image/png" href="./微信图片_20260419100331_163_6485.png">
 <script src="https://unpkg.com/react@18.3.1/umd/react.development.js" crossorigin="anonymous"></script>
 <script src="https://unpkg.com/react-dom@18.3.1/umd/react-dom.development.js" crossorigin="anonymous"></script>
 <script src="https://unpkg.com/@babel/standalone@7.29.0/babel.min.js" crossorigin="anonymous"></script>
@@ -623,9 +624,32 @@ function resolveAssetUrl(path) {
   return window.MemeLabAPI ? window.MemeLabAPI.assetUrl(path) : path;
 }
 
-function MemeArtwork({ assetPath, dataUrl, label, aspect = '1/1', bg }) {
+function MemeArtwork({ assetPath, dataUrl, label, aspect = '1/1', bg, preserveRatio = false, maxHeight = 420 }) {
   const src = resolveAssetUrl(assetPath || dataUrl);
   if (!src) return <MemePlaceholder label={label} aspect={aspect} bg={bg}/>;
+  if (preserveRatio) {
+    return (
+      <div style={{
+        background: bg || '#F5F5F5',
+        overflow: 'hidden',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+      }}>
+        <img
+          src={src}
+          alt={label || 'meme'}
+          style={{
+            width: '100%',
+            height: 'auto',
+            maxHeight,
+            display: 'block',
+            background: bg || '#F5F5F5',
+          }}
+        />
+      </div>
+    );
+  }
   return (
     <div style={{ aspectRatio: aspect, background: bg || '#F5F5F5', overflow: 'hidden' }}>
       <img
@@ -1158,6 +1182,8 @@ function Plaza({ onProfileSync, onOpenGen }) {
 }
 
 function PostCard({ post, onLaugh, onOpenDetail, onRemix, onFavorite, onOpenAuthor }) {
+  const captionText = post.captionPreview || post.caption;
+  const sourceText = post.sourceLabelShort || post.sourceLabel || post.source;
   return (
     <div className="pop-in" style={{
       display: 'flex', flexDirection: 'column', flexShrink: 0,
@@ -1169,28 +1195,51 @@ function PostCard({ post, onLaugh, onOpenDetail, onRemix, onFavorite, onOpenAuth
           <div style={{
             width: 36, height: 36, borderRadius: '50%',
             background: post.bg, display: 'flex', alignItems: 'center', justifyContent: 'center',
-            fontSize: 20,
+            fontSize: 20, flexShrink: 0,
           }}>{post.avatar}</div>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-            <div style={{ fontSize: 13, fontWeight: 700, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>@{post.author}</div>
-            <LevelTag level={post.level}/>
-          </div>
-          <div style={{ fontSize: 11, color: '#888', marginTop: 2, display: 'flex', gap: 6, alignItems: 'center', flexWrap: 'wrap' }}>
-            <Badge accent={post.accent}>{post.tag}</Badge>
-            {post.followingAuthor && <Badge accent="green">已关注</Badge>}
-            {post.mine && <Badge accent="purple">我发的</Badge>}
-            <span>· {post.time}</span>
+          <div style={{ flex: 1, minWidth: 0 }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 6, minWidth: 0 }}>
+              <div style={{ fontSize: 13, fontWeight: 700, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>@{post.author}</div>
+              <LevelTag level={post.level}/>
+            </div>
+            <div style={{ fontSize: 11, color: '#888', marginTop: 2, display: 'flex', gap: 6, alignItems: 'center', flexWrap: 'wrap' }}>
+              <Badge accent={post.accent}>{post.tag}</Badge>
+              {post.followingAuthor && <Badge accent="green">已关注</Badge>}
+              {post.mine && <Badge accent="purple">我发的</Badge>}
+              <span>· {post.time}</span>
+            </div>
           </div>
         </button>
       </div>
 
-      <MemeArtwork assetPath={post.assetPath} label={post.memeLabel} aspect="1/1" bg={post.bg}/>
+      <MemeArtwork
+        assetPath={post.assetPath}
+        label={post.memeLabel}
+        aspect="1/1"
+        bg={post.bg}
+        preserveRatio={!!post.preferNaturalMediaRatio}
+        maxHeight={380}
+      />
 
-      <div style={{ padding: '12px 16px 10px', fontSize: 14, lineHeight: 1.55, whiteSpace: 'pre-line' }}>
-        {post.caption}
-        {(post.sourceLabel || post.source) && (
+      <div style={{ padding: '12px 16px 10px', fontSize: 14, lineHeight: 1.55 }}>
+        <div style={{
+          display: '-webkit-box',
+          WebkitLineClamp: 4,
+          WebkitBoxOrient: 'vertical',
+          overflow: 'hidden',
+          whiteSpace: 'pre-line',
+          wordBreak: 'break-word',
+        }}>
+          {captionText}
+        </div>
+        {(post.captionPreview && post.captionPreview !== post.caption) && (
+          <button onClick={onOpenDetail} style={{ marginTop: 6, fontSize: 12, color: 'var(--blue)', fontWeight: 700 }}>
+            展开全文
+          </button>
+        )}
+        {sourceText && (
           <div style={{ marginTop: 8 }}>
-            <Badge accent="amber">📎 {post.sourceLabel || post.source}</Badge>
+            <Badge accent="amber">📎 {sourceText}</Badge>
           </div>
         )}
       </div>
@@ -1481,7 +1530,7 @@ function UserProfileSheet({ profile, loading, onClose, onToggleFollow, onOpenPos
                         <MemeArtwork assetPath={post.thumbnailUrl || post.assetPath} label={post.memeLabel} aspect="1/1" bg={post.bg}/>
                       </div>
                       <div style={{ flex: 1, minWidth: 0 }}>
-                        <div style={{ fontSize: 13, fontWeight: 700, lineHeight: 1.5, whiteSpace: 'pre-line' }}>{post.caption}</div>
+                        <div style={{ fontSize: 13, fontWeight: 700, lineHeight: 1.5, whiteSpace: 'pre-line' }}>{post.captionPreview || post.caption}</div>
                         <div style={{ fontSize: 11, color: '#888', marginTop: 6, display: 'flex', gap: 10 }}>
                           <span>😂 {post.stats?.laugh || 0}</span>
                           <span>💬 {post.stats?.comments || 0}</span>
@@ -1910,7 +1959,7 @@ function GenResults({ results, activeIdx, setActiveIdx, originalInput, onRegen, 
             position: 'absolute', top: 8, right: 8,
             background: 'rgba(0,0,0,0.6)', color: '#fff',
             fontSize: 10, padding: '3px 8px', borderRadius: 999, fontWeight: 600,
-          }}>造梗局·{level || '黄金梗师'}水印</div>
+          }}>“梗”社区·{level || '黄金梗师'}水印</div>
         </div>
         {!!cur.imagePrompt && (
           <div style={{ marginTop: 10, padding: '10px 12px', borderRadius: 12, background: '#F7F7F8' }}>
@@ -2366,11 +2415,11 @@ function WorldScreen({ onOpenGen, onOpenPlaza }) {
                   <MemeArtwork assetPath={post.thumbnailUrl || post.assetPath} label={post.memeLabel} aspect="1/1" bg={post.bg}/>
                 </div>
                 <div style={{ flex: 1, minWidth: 0 }}>
-                  <div style={{ fontSize: 13, fontWeight: 700, lineHeight: 1.5, whiteSpace: 'pre-line' }}>{post.caption}</div>
+                  <div style={{ fontSize: 13, fontWeight: 700, lineHeight: 1.5, whiteSpace: 'pre-line' }}>{post.captionPreview || post.caption}</div>
                   <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', fontSize: 11, color: '#888', marginTop: 6 }}>
                     <span>@{post.author}</span>
                     <span>😂 {post.stats?.laugh || 0}</span>
-                    <span>{post.sourceLabel || post.source}</span>
+                    <span>{post.sourceLabelShort || post.sourceLabel || post.source}</span>
                   </div>
                 </div>
               </div>
@@ -2568,7 +2617,7 @@ function GameScreen({ onProfileSync, points, level, persona, onOpenGen, onOpenPl
                       <MemeArtwork assetPath={post.thumbnailUrl || post.assetPath} label={post.memeLabel} aspect="1/1" bg={post.bg}/>
                     </div>
                     <div style={{ flex: 1, minWidth: 0 }}>
-                      <div style={{ fontSize: 13, fontWeight: 700, lineHeight: 1.5, whiteSpace: 'pre-line' }}>{post.caption}</div>
+                      <div style={{ fontSize: 13, fontWeight: 700, lineHeight: 1.5, whiteSpace: 'pre-line' }}>{post.captionPreview || post.caption}</div>
                       <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', fontSize: 11, color: '#888', marginTop: 6 }}>
                         <span>😂 {post.stats?.laugh || 0}</span>
                         <span>💬 {post.stats?.comments || 0}</span>
@@ -2878,11 +2927,11 @@ function App() {
   }
 
   const tabs = [
-    { key: 'king', label: '梗王', icon: '🤴' },
-    { key: 'world', label: '世界', icon: '🌍' },
-    { key: 'plaza', label: '广场', icon: '🔥', center: true },
-    { key: 'gen', label: '造梗', icon: '✨' },
-    { key: 'game', label: '我的', icon: '👤' },
+    { key: 'king', icon: '🤴' },
+    { key: 'world', icon: '🌍' },
+    { key: 'plaza', icon: '🔥', center: true },
+    { key: 'gen', icon: '✨' },
+    { key: 'game', icon: '👤' },
   ];
 
   const screen = (() => {
@@ -2914,7 +2963,7 @@ function App() {
         </IOSDevice>
 
         <div style={{ textAlign: 'center', marginTop: 16, fontSize: 12, color: '#888', letterSpacing: 1 }}>
-          造梗局 · MEMELAB PROTOTYPE
+          “梗”社区 Meme Community
         </div>
       </div>
 
@@ -2939,16 +2988,15 @@ function TabBar({ tabs, current, onChange }) {
         return (
           <button key={t.key} onClick={() => onChange(t.key)} style={{
             justifySelf: t.center ? 'center' : 'stretch',
-            display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6,
-            padding: active ? (t.center ? '10px 18px' : '8px 12px') : (t.center ? '9px 16px' : '8px 10px'),
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+            padding: active ? (t.center ? '12px 20px' : '10px 14px') : (t.center ? '10px 18px' : '8px 12px'),
             borderRadius: 999,
             background: active ? '#1A1A1A' : 'transparent',
             color: active ? '#fff' : '#AAA',
-            minWidth: t.center ? 96 : 0,
+            minWidth: t.center ? 80 : 56,
             transition: 'all 0.25s cubic-bezier(0.34, 1.56, 0.64, 1)',
           }}>
-            <span style={{ fontSize: t.center ? 19 : 18 }}>{t.icon}</span>
-            {active && <span style={{ fontSize: 12, fontWeight: 700 }}>{t.label}</span>}
+            <span style={{ fontSize: t.center ? 22 : 20 }}>{t.icon}</span>
           </button>
         );
       })}
