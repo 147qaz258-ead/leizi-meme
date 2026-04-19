@@ -397,6 +397,7 @@ LEVELS = [
 
 COMMUNITY_POST_TARGET = 108
 LOCAL_IMAGE_PATTERNS = ("微信图片_*.jpg", "微信图片_*.jpeg", "微信图片_*.png", "微信图片_*.webp")
+ANIMAL_MEME_DIR = ROOT / "动物梗图" / "动物梗图"
 COMMUNITY_AUTHORS = [
     ("通勤摆烂学家", "🫠"),
     ("摸鱼观察员", "🐟"),
@@ -458,8 +459,27 @@ def stable_int(seed: str) -> int:
 def discover_local_images() -> list[Path]:
     found: list[Path] = []
     seen: set[Path] = set()
+    # 根目录的微信图片
     for pattern in LOCAL_IMAGE_PATTERNS:
         for file_path in sorted(ROOT.glob(pattern)):
+            if file_path.is_file() and file_path not in seen:
+                seen.add(file_path)
+                found.append(file_path)
+    # 动物梗图目录
+    if ANIMAL_MEME_DIR.exists():
+        for file_path in sorted(ANIMAL_MEME_DIR.glob("*.jpg")):
+            if file_path.is_file() and file_path not in seen:
+                seen.add(file_path)
+                found.append(file_path)
+        for file_path in sorted(ANIMAL_MEME_DIR.glob("*.jpeg")):
+            if file_path.is_file() and file_path not in seen:
+                seen.add(file_path)
+                found.append(file_path)
+        for file_path in sorted(ANIMAL_MEME_DIR.glob("*.png")):
+            if file_path.is_file() and file_path not in seen:
+                seen.add(file_path)
+                found.append(file_path)
+        for file_path in sorted(ANIMAL_MEME_DIR.glob("*.webp")):
             if file_path.is_file() and file_path not in seen:
                 seen.add(file_path)
                 found.append(file_path)
@@ -499,13 +519,30 @@ def build_local_image_posts() -> tuple[list[dict], dict[str, list[dict]]]:
     base_time = now_local() - timedelta(days=2)
     for image_index, image_file in enumerate(image_files):
         serial = extract_image_serial(image_file, image_index)
+        # 计算相对路径（相对于项目根目录）
+        relative_path = "/" + str(image_file.relative_to(ROOT))
+        # 判断是否来自动物梗图目录
+        is_animal_meme = "动物梗图" in str(image_file)
+        source_label = "动物梗图" if is_animal_meme else f"微信图 {serial}"
         for variant_index, variant in enumerate(COMMUNITY_VARIANTS):
-            post_id = f"wx-{serial}-{variant_index + 1}"
+            post_id = f"wx-{serial}-{variant_index + 1}" if not is_animal_meme else f"animal-{serial}-{variant_index + 1}"
             author, avatar = COMMUNITY_AUTHORS[(image_index + variant_index) % len(COMMUNITY_AUTHORS)]
             points_seed = 120 + stable_int(post_id) % 620
             tag = TAGS[(image_index + variant_index) % len(TAGS)]
             created_at = (base_time + timedelta(minutes=image_index * 39 + variant_index * 7)).isoformat(timespec="seconds")
             caption = f"{variant['open']}\n{variant['close']}"
+            meme_label = f"{variant['template']}.jpg\n[真实素材 · {source_label}]"
+            if is_animal_meme:
+                # 从文件名提取主题
+                filename = image_file.stem
+                if "猫猫" in filename or "猫" in filename:
+                    meme_label = f"🐱 猫猫梗图\n[真实素材 · 小红书]"
+                elif "狗" in filename or "比格" in filename:
+                    meme_label = f"🐶 狗狗梗图\n[真实素材 · 小红书]"
+                elif "meme" in filename.lower() or "MEME" in filename:
+                    meme_label = f"😂 动物梗图\n[真实素材 · 小红书]"
+                else:
+                    meme_label = f"🐾 动物梗图\n[真实素材 · 小红书]"
             post = {
                 "id": post_id,
                 "author": author,
@@ -513,7 +550,7 @@ def build_local_image_posts() -> tuple[list[dict], dict[str, list[dict]]]:
                 "level": level_from_points(points_seed),
                 "tag": tag,
                 "caption": caption,
-                "memeLabel": f"{variant['template']}.jpg\n[真实素材 · 微信图 {serial}]",
+                "memeLabel": meme_label,
                 "bg": ACCENT_COLORS[variant["accent"]][0],
                 "accent": variant["accent"],
                 "stats": {
@@ -522,10 +559,10 @@ def build_local_image_posts() -> tuple[list[dict], dict[str, list[dict]]]:
                     "shares": 8 + stable_int(post_id + "-shares") % 420,
                 },
                 "template": variant["template"],
-                "assetPath": "/" + image_file.name,
+                "assetPath": relative_path,
                 "createdAt": created_at,
                 "source": "local_image",
-                "sourceLabel": f"微信图 {serial}",
+                "sourceLabel": source_label,
             }
             posts.append(post)
             comments_map[post_id] = build_seed_comments_for_post(post)
