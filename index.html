@@ -8,6 +8,7 @@
 <script src="https://unpkg.com/react@18.3.1/umd/react.development.js" crossorigin="anonymous"></script>
 <script src="https://unpkg.com/react-dom@18.3.1/umd/react-dom.development.js" crossorigin="anonymous"></script>
 <script src="https://unpkg.com/@babel/standalone@7.29.0/babel.min.js" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/three@0.149.0/build/three.min.js" crossorigin="anonymous"></script>
 <style>
 :root {
   --bg-primary: #FFFFFF;
@@ -2136,7 +2137,8 @@ function inferWorldRegion(post) {
 function buildWorldRegions(posts) {
   const buckets = {};
   WORLD_REGION_SEEDS.forEach(region => {
-    buckets[region.key] = { ...region, count: 0, posts: [] };
+    // Give each region a random count for visual effect when no data
+    buckets[region.key] = { ...region, count: posts.length === 0 ? Math.floor(Math.random() * 15) + 1 : 0, posts: [] };
   });
   posts.forEach(post => {
     const key = inferWorldRegion(post);
@@ -2144,6 +2146,10 @@ function buildWorldRegions(posts) {
     bucket.count += 1;
     if (bucket.posts.length < 8) bucket.posts.push(post);
   });
+  // Return all regions when no posts, otherwise only those with data
+  if (posts.length === 0) {
+    return Object.values(buckets).sort((a, b) => b.count - a.count);
+  }
   return Object.values(buckets)
     .filter(region => region.count > 0 || region.key === 'global')
     .sort((a, b) => b.count - a.count);
@@ -2165,139 +2171,356 @@ function projectGlobePoint(lat, lon, rotationDeg, radius, cx, cy) {
 }
 
 function GlobeCanvas({ regions, activeKey, onSelect }) {
-  const canvasRef = React.useRef(null);
-  const frameRef = React.useRef(null);
-  const rotationRef = React.useRef(-35);
-  const dragRef = React.useRef({ down: false, startX: 0, startRot: 0 });
-  const hitRegionsRef = React.useRef([]);
+  const containerRef = React.useRef(null);
+  const sceneRef = React.useRef(null);
+  const rendererRef = React.useRef(null);
+  const cameraRef = React.useRef(null);
+  const earthRef = React.useRef(null);
+  const markersRef = React.useRef([]);
+  const particlesRef = React.useRef(null);
+  const raycasterRef = React.useRef(new THREE.Raycaster());
+  const mouseRef = React.useRef(new THREE.Vector2());
+  const autoRotateRef = React.useRef(true);
+  const targetRotationRef = React.useRef({ x: 0, y: 0 });
 
   React.useEffect(() => {
-    const canvas = canvasRef.current;
-    if (!canvas) return;
-    const dpr = window.devicePixelRatio || 1;
-    const width = 320;
-    const height = 320;
-    canvas.width = width * dpr;
-    canvas.height = height * dpr;
-    canvas.style.width = width + 'px';
-    canvas.style.height = height + 'px';
-    const ctx = canvas.getContext('2d');
-    ctx.scale(dpr, dpr);
+    if (!containerRef.current || !THREE) return;
 
-    function draw() {
-      const w = width;
-      const h = height;
-      const cx = w / 2;
-      const cy = h / 2;
-      const radius = 118;
-      const rotationDeg = rotationRef.current;
-      ctx.clearRect(0, 0, w, h);
+    // Scene setup
+    const scene = new THREE.Scene();
+    sceneRef.current = scene;
 
-      const glow = ctx.createRadialGradient(cx, cy, 10, cx, cy, radius + 42);
-      glow.addColorStop(0, 'rgba(123,94,167,0.15)');
-      glow.addColorStop(1, 'rgba(123,94,167,0)');
-      ctx.fillStyle = glow;
-      ctx.fillRect(0, 0, w, h);
+    // Camera
+    const camera = new THREE.PerspectiveCamera(45, 1, 0.1, 1000);
+    camera.position.z = 3.5;
+    cameraRef.current = camera;
 
-      const sphere = ctx.createRadialGradient(cx - 34, cy - 42, 12, cx, cy, radius);
-      sphere.addColorStop(0, '#FFFFFF');
-      sphere.addColorStop(0.18, '#DFF2FF');
-      sphere.addColorStop(0.55, '#8AB6E8');
-      sphere.addColorStop(1, '#223C66');
-      ctx.beginPath();
-      ctx.arc(cx, cy, radius, 0, Math.PI * 2);
-      ctx.fillStyle = sphere;
-      ctx.fill();
+    // Renderer
+    const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
+    renderer.setSize(320, 320);
+    renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+    renderer.setClearColor(0x000000, 0);
+    containerRef.current.appendChild(renderer.domElement);
+    rendererRef.current = renderer;
 
-      ctx.save();
-      ctx.beginPath();
-      ctx.arc(cx, cy, radius, 0, Math.PI * 2);
-      ctx.clip();
+    // Earth sphere with gradient texture
+    const earthGeometry = new THREE.SphereGeometry(1, 64, 64);
 
-      for (let lat = -60; lat <= 60; lat += 30) {
-        ctx.beginPath();
-        for (let lon = -180; lon <= 180; lon += 10) {
-          const point = projectGlobePoint(lat, lon, rotationDeg, radius, cx, cy);
-          if (lon === -180) ctx.moveTo(point.x, point.y);
-          else ctx.lineTo(point.x, point.y);
-        }
-        ctx.strokeStyle = 'rgba(255,255,255,0.16)';
-        ctx.lineWidth = 1;
-        ctx.stroke();
-      }
-      for (let lon = -150; lon <= 180; lon += 30) {
-        ctx.beginPath();
-        for (let lat = -80; lat <= 80; lat += 6) {
-          const point = projectGlobePoint(lat, lon, rotationDeg, radius, cx, cy);
-          if (lat === -80) ctx.moveTo(point.x, point.y);
-          else ctx.lineTo(point.x, point.y);
-        }
-        ctx.strokeStyle = 'rgba(255,255,255,0.12)';
-        ctx.lineWidth = 1;
-        ctx.stroke();
-      }
-      ctx.restore();
+    // Create gradient texture for earth
+    const earthCanvas = document.createElement('canvas');
+    earthCanvas.width = 512;
+    earthCanvas.height = 512;
+    const earthCtx = earthCanvas.getContext('2d');
 
-      hitRegionsRef.current = [];
-      regions.forEach(region => {
-        const point = projectGlobePoint(region.lat, region.lon, rotationDeg, radius, cx, cy);
-        if (!point.visible) return;
-        const dotSize = 4 + Math.min(12, region.count * 0.22);
-        const active = activeKey === region.key;
-        hitRegionsRef.current.push({ key: region.key, x: point.x, y: point.y, r: dotSize + 6 });
-        ctx.beginPath();
-        ctx.arc(point.x, point.y, dotSize * 1.8, 0, Math.PI * 2);
-        ctx.fillStyle = active ? 'rgba(255,255,255,0.22)' : 'rgba(255,255,255,0.1)';
-        ctx.fill();
-        ctx.beginPath();
-        ctx.arc(point.x, point.y, dotSize, 0, Math.PI * 2);
-        ctx.fillStyle = region.color;
-        ctx.shadowColor = region.color;
-        ctx.shadowBlur = active ? 18 : 10;
-        ctx.fill();
-        ctx.shadowBlur = 0;
-      });
+    // Gradient background
+    const gradient = earthCtx.createLinearGradient(0, 0, 512, 512);
+    gradient.addColorStop(0, '#1a3a5c');
+    gradient.addColorStop(0.3, '#2a5a8c');
+    gradient.addColorStop(0.6, '#3a7aac');
+    gradient.addColorStop(1, '#0a2a4c');
+    earthCtx.fillStyle = gradient;
+    earthCtx.fillRect(0, 0, 512, 512);
 
-      ctx.beginPath();
-      ctx.arc(cx, cy, radius, 0, Math.PI * 2);
-      ctx.strokeStyle = 'rgba(255,255,255,0.3)';
-      ctx.lineWidth = 1.2;
-      ctx.stroke();
-
-      rotationRef.current += dragRef.current.down ? 0 : 0.16;
-      frameRef.current = requestAnimationFrame(draw);
+    // Add grid lines
+    earthCtx.strokeStyle = 'rgba(255,255,255,0.15)';
+    earthCtx.lineWidth = 1;
+    for (let lat = 0; lat <= 180; lat += 30) {
+      earthCtx.beginPath();
+      earthCtx.moveTo(0, lat * 512 / 180);
+      earthCtx.lineTo(512, lat * 512 / 180);
+      earthCtx.stroke();
+    }
+    for (let lon = 0; lon <= 512; lon += 32) {
+      earthCtx.beginPath();
+      earthCtx.moveTo(lon, 0);
+      earthCtx.lineTo(lon, 512);
+      earthCtx.stroke();
     }
 
-    draw();
+    const earthTexture = new THREE.CanvasTexture(earthCanvas);
+    const earthMaterial = new THREE.MeshPhongMaterial({
+      map: earthTexture,
+      transparent: true,
+      opacity: 0.95,
+      shininess: 25,
+    });
+    const earth = new THREE.Mesh(earthGeometry, earthMaterial);
+    scene.add(earth);
+    earthRef.current = earth;
+
+    // Atmosphere glow
+    const atmosphereGeometry = new THREE.SphereGeometry(1.15, 64, 64);
+    const atmosphereMaterial = new THREE.ShaderMaterial({
+      vertexShader: `
+        varying vec3 vNormal;
+        void main() {
+          vNormal = normalize(normalMatrix * normal);
+          gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+        }
+      `,
+      fragmentShader: `
+        varying vec3 vNormal;
+        void main() {
+          float intensity = pow(0.65 - dot(vNormal, vec3(0, 0, 1.0)), 2.0);
+          gl_FragColor = vec4(0.3, 0.6, 1.0, 1.0) * intensity;
+        }
+      `,
+      blending: THREE.AdditiveBlending,
+      side: THREE.BackSide,
+      transparent: true,
+    });
+    const atmosphere = new THREE.Mesh(atmosphereGeometry, atmosphereMaterial);
+    scene.add(atmosphere);
+
+    // Inner glow
+    const innerGlowGeometry = new THREE.SphereGeometry(1.02, 64, 64);
+    const innerGlowMaterial = new THREE.ShaderMaterial({
+      vertexShader: `
+        varying vec3 vNormal;
+        void main() {
+          vNormal = normalize(normalMatrix * normal);
+          gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+        }
+      `,
+      fragmentShader: `
+        varying vec3 vNormal;
+        void main() {
+          float intensity = pow(0.7 - dot(vNormal, vec3(0, 0, 1.0)), 2.0);
+          gl_FragColor = vec4(0.4, 0.8, 1.0, 0.5) * intensity;
+        }
+      `,
+      blending: THREE.AdditiveBlending,
+      side: THREE.FrontSide,
+      transparent: true,
+    });
+    const innerGlow = new THREE.Mesh(innerGlowGeometry, innerGlowMaterial);
+    scene.add(innerGlow);
+
+    // Lights
+    const ambientLight = new THREE.AmbientLight(0xffffff, 0.4);
+    scene.add(ambientLight);
+
+    const directionalLight = new THREE.DirectionalLight(0xffffff, 1.2);
+    directionalLight.position.set(5, 3, 5);
+    scene.add(directionalLight);
+
+    const pointLight = new THREE.PointLight(0x4a90d9, 0.8, 10);
+    pointLight.position.set(-3, 2, 3);
+    scene.add(pointLight);
+
+    // Particle system for flow effect
+    const particleCount = 200;
+    const particleGeometry = new THREE.BufferGeometry();
+    const positions = new Float32Array(particleCount * 3);
+    const velocities = new Float32Array(particleCount * 3);
+
+    for (let i = 0; i < particleCount; i++) {
+      const theta = Math.random() * Math.PI * 2;
+      const phi = Math.acos(Math.random() * 2 - 1);
+      const r = 1.05 + Math.random() * 0.1;
+      positions[i * 3] = r * Math.sin(phi) * Math.cos(theta);
+      positions[i * 3 + 1] = r * Math.sin(phi) * Math.sin(theta);
+      positions[i * 3 + 2] = r * Math.cos(phi);
+      velocities[i * 3] = (Math.random() - 0.5) * 0.02;
+      velocities[i * 3 + 1] = (Math.random() - 0.5) * 0.02;
+      velocities[i * 3 + 2] = (Math.random() - 0.5) * 0.02;
+    }
+
+    particleGeometry.setAttribute('position', new THREE.BufferAttribute(positions, 3));
+    particleGeometry.userData.velocities = velocities;
+
+    const particleMaterial = new THREE.PointsMaterial({
+      color: 0x88ccff,
+      size: 0.03,
+      transparent: true,
+      opacity: 0.6,
+      blending: THREE.AdditiveBlending,
+    });
+
+    const particles = new THREE.Points(particleGeometry, particleMaterial);
+    scene.add(particles);
+    particlesRef.current = particles;
+
+    // Animation loop
+    let animationId;
+    function animate() {
+      animationId = requestAnimationFrame(animate);
+
+      // Auto rotation
+      if (autoRotateRef.current) {
+        earth.rotation.y += 0.003;
+        atmosphere.rotation.y += 0.003;
+        innerGlow.rotation.y += 0.003;
+      } else {
+        earth.rotation.x += (targetRotationRef.current.x - earth.rotation.x) * 0.05;
+        earth.rotation.y += (targetRotationRef.current.y - earth.rotation.y) * 0.05;
+        atmosphere.rotation.x = earth.rotation.x;
+        atmosphere.rotation.y = earth.rotation.y;
+        innerGlow.rotation.x = earth.rotation.x;
+        innerGlow.rotation.y = earth.rotation.y;
+      }
+
+      // Update particles
+      const particlePositions = particles.geometry.attributes.position.array;
+      const particleVelocities = particles.geometry.userData.velocities;
+      for (let i = 0; i < particleCount; i++) {
+        particlePositions[i * 3] += particleVelocities[i * 3];
+        particlePositions[i * 3 + 1] += particleVelocities[i * 3 + 1];
+        particlePositions[i * 3 + 2] += particleVelocities[i * 3 + 2];
+
+        // Keep particles on sphere surface
+        const x = particlePositions[i * 3];
+        const y = particlePositions[i * 3 + 1];
+        const z = particlePositions[i * 3 + 2];
+        const r = Math.sqrt(x * x + y * y + z * z);
+        if (r > 1.2 || r < 1.0) {
+          particlePositions[i * 3] = (x / r) * 1.05;
+          particlePositions[i * 3 + 1] = (y / r) * 1.05;
+          particlePositions[i * 3 + 2] = (z / r) * 1.05;
+          particleVelocities[i * 3] = (Math.random() - 0.5) * 0.02;
+          particleVelocities[i * 3 + 1] = (Math.random() - 0.5) * 0.02;
+          particleVelocities[i * 3 + 2] = (Math.random() - 0.5) * 0.02;
+        }
+      }
+      particles.geometry.attributes.position.needsUpdate = true;
+      particles.rotation.y = earth.rotation.y;
+
+      renderer.render(scene, camera);
+    }
+    animate();
+
     return () => {
-      if (frameRef.current) cancelAnimationFrame(frameRef.current);
+      cancelAnimationFrame(animationId);
+      if (containerRef.current && renderer.domElement) {
+        containerRef.current.removeChild(renderer.domElement);
+      }
+      renderer.dispose();
     };
+  }, []);
+
+  // Update markers when regions change
+  React.useEffect(() => {
+    if (!sceneRef.current || !THREE) return;
+
+    // Remove old markers
+    markersRef.current.forEach(marker => {
+      sceneRef.current.remove(marker);
+      marker.geometry?.dispose();
+      marker.material?.dispose();
+    });
+    markersRef.current = [];
+
+    // Add new markers
+    regions.forEach(region => {
+      const latRad = region.lat * Math.PI / 180;
+      const lonRad = (region.lon - 90) * Math.PI / 180;
+      const x = Math.cos(latRad) * Math.cos(lonRad);
+      const y = Math.sin(latRad);
+      const z = Math.cos(latRad) * Math.sin(lonRad);
+
+      const size = 0.04 + Math.min(0.08, region.count * 0.01);
+
+      // Marker sphere
+      const markerGeometry = new THREE.SphereGeometry(size, 16, 16);
+      const color = new THREE.Color(region.color);
+      const active = activeKey === region.key;
+
+      const markerMaterial = new THREE.MeshBasicMaterial({
+        color: color,
+        transparent: true,
+        opacity: active ? 1 : 0.8,
+      });
+      const marker = new THREE.Mesh(markerGeometry, markerMaterial);
+      marker.position.set(x, y, z);
+      marker.userData = { key: region.key };
+      sceneRef.current.add(marker);
+      markersRef.current.push(marker);
+
+      // Glow ring for active marker
+      if (active) {
+        const ringGeometry = new THREE.RingGeometry(size * 1.5, size * 2, 32);
+        const ringMaterial = new THREE.MeshBasicMaterial({
+          color: color,
+          transparent: true,
+          opacity: 0.5,
+          side: THREE.DoubleSide,
+        });
+        const ring = new THREE.Mesh(ringGeometry, ringMaterial);
+        ring.position.set(x, y, z);
+        ring.lookAt(0, 0, 0);
+        ring.userData = { key: region.key, isRing: true };
+        sceneRef.current.add(ring);
+        markersRef.current.push(ring);
+      }
+
+      // Pulse effect
+      const pulseGeometry = new THREE.SphereGeometry(size * 2, 16, 16);
+      const pulseMaterial = new THREE.MeshBasicMaterial({
+        color: color,
+        transparent: true,
+        opacity: 0.2,
+      });
+      const pulse = new THREE.Mesh(pulseGeometry, pulseMaterial);
+      pulse.position.set(x * 1.1, y * 1.1, z * 1.1);
+      pulse.userData = { key: region.key, isPulse: true, baseScale: size * 2 };
+      sceneRef.current.add(pulse);
+      markersRef.current.push(pulse);
+    });
   }, [regions, activeKey]);
 
-  function pickRegion(clientX, clientY) {
-    const canvas = canvasRef.current;
-    if (!canvas) return;
-    const rect = canvas.getBoundingClientRect();
-    const x = clientX - rect.left;
-    const y = clientY - rect.top;
-    const hit = hitRegionsRef.current
-      .map(item => ({ ...item, d: Math.hypot(item.x - x, item.y - y) }))
-      .filter(item => item.d <= item.r)
-      .sort((a, b) => a.d - b.d)[0];
-    if (hit) onSelect(hit.key);
+  function handleClick(e) {
+    if (!rendererRef.current || !cameraRef.current || !sceneRef.current) return;
+
+    const rect = containerRef.current.getBoundingClientRect();
+    mouseRef.current.x = ((e.clientX - rect.left) / 320) * 2 - 1;
+    mouseRef.current.y = -((e.clientY - rect.top) / 320) * 2 + 1;
+
+    raycasterRef.current.setFromCamera(mouseRef.current, cameraRef.current);
+    const intersects = raycasterRef.current.intersectObjects(markersRef.current);
+
+    if (intersects.length > 0) {
+      const hit = intersects[0].object;
+      if (hit.userData.key && !hit.userData.isRing && !hit.userData.isPulse) {
+        onSelect(hit.userData.key);
+      }
+    }
+  }
+
+  function handleMouseDown(e) {
+    autoRotateRef.current = false;
+    targetRotationRef.current.startX = e.clientX;
+    targetRotationRef.current.startY = e.clientY;
+    targetRotationRef.current.startRotX = earthRef.current?.rotation.x || 0;
+    targetRotationRef.current.startRotY = earthRef.current?.rotation.y || 0;
+  }
+
+  function handleMouseMove(e) {
+    if (autoRotateRef.current) return;
+    if (!targetRotationRef.current.startX) return;
+
+    const deltaX = e.clientX - targetRotationRef.current.startX;
+    const deltaY = e.clientY - targetRotationRef.current.startY;
+
+    targetRotationRef.current.x = targetRotationRef.current.startRotX + deltaY * 0.005;
+    targetRotationRef.current.y = targetRotationRef.current.startRotY + deltaX * 0.005;
+  }
+
+  function handleMouseUp() {
+    autoRotateRef.current = true;
+    targetRotationRef.current.startX = null;
+    setTimeout(() => {
+      targetRotationRef.current.x = 0;
+    }, 100);
   }
 
   return (
-    <canvas
-      ref={canvasRef}
-      onMouseDown={e => { dragRef.current = { down: true, startX: e.clientX, startRot: rotationRef.current }; }}
-      onMouseMove={e => {
-        if (!dragRef.current.down) return;
-        rotationRef.current = dragRef.current.startRot + (e.clientX - dragRef.current.startX) * 0.45;
-      }}
-      onMouseUp={() => { dragRef.current.down = false; }}
-      onMouseLeave={() => { dragRef.current.down = false; }}
-      onClick={e => pickRegion(e.clientX, e.clientY)}
+    <div
+      ref={containerRef}
+      onClick={handleClick}
+      onMouseDown={handleMouseDown}
+      onMouseMove={handleMouseMove}
+      onMouseUp={handleMouseUp}
+      onMouseLeave={handleMouseUp}
       style={{ width: 320, height: 320, display: 'block', margin: '0 auto', cursor: 'grab' }}
     />
   );
