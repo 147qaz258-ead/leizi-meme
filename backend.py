@@ -858,6 +858,7 @@ def ensure_community_db() -> None:
         for user_id, username, avatar in COMMUNITY_USER_SEEDS:
             ensure_user(conn, user_id, username, avatar, "社区常驻用户", 1)
         seed_follow_graph(conn)
+        ensure_seed_posts(conn)
         ensure_builtin_animal_posts(conn)
         conn.commit()
 
@@ -872,6 +873,87 @@ def seed_follow_graph(conn: sqlite3.Connection) -> None:
             VALUES (?, ?, ?)
             """,
             (follower_id, followee_id, now_local().isoformat(timespec="seconds")),
+        )
+
+
+def ensure_seed_posts(conn: sqlite3.Connection) -> None:
+    """将预设的中国梗数据插入数据库，作为内置内容优先显示"""
+    for index, post in enumerate(SEED_POSTS):
+        post_id = post.get("id", f"seed-{index + 1}")
+        author_name = post.get("author", "梗友")
+        author_avatar = post.get("avatar", "🎭")
+        author_id = f"seed-user-{index + 1}"
+
+        # 确保用户存在
+        ensure_user(conn, author_id, author_name, author_avatar, "内置梗数据作者", 1)
+
+        stats = post.get("stats", {})
+        created_at = post.get("createdAt", now_local().isoformat(timespec="seconds"))
+
+        post_row = {
+            "id": post_id,
+            "source_platform": "builtin-seed",
+            "source_id": post_id,
+            "source_url": "",
+            "community": "造梗局内置",
+            "author_id": author_id,
+            "author_name": author_name,
+            "author_avatar": author_avatar,
+            "level": post.get("level", "🥈 白银梗手"),
+            "tag": post.get("tag", "🔥 今日热梗"),
+            "caption": post.get("caption", ""),
+            "meme_label": post.get("memeLabel", ""),
+            "bg": post.get("bg", "#FDE6D9"),
+            "accent": post.get("accent", "red"),
+            "asset_url": "",
+            "thumbnail_url": "",
+            "media_type": "text",
+            "template": post.get("template", ""),
+            "source_label": "造梗局 · 内置梗库",
+            "created_at": created_at,
+            "external_laugh": stats.get("laugh", 100),
+            "external_comments": stats.get("comments", 10),
+            "external_shares": stats.get("shares", 5),
+            "nsfw": 0,
+            "raw_json": json.dumps(post, ensure_ascii=False),
+            "dedupe_key": hashlib.md5(f"seed:{post_id}".encode("utf-8")).hexdigest(),
+        }
+
+        conn.execute(
+            """
+            INSERT INTO posts (
+                id, source_platform, source_id, source_url, community, author_id, author_name,
+                author_avatar, level, tag, caption, meme_label, bg, accent, asset_url, thumbnail_url,
+                media_type, template, source_label, created_at, external_laugh, external_comments,
+                external_shares, nsfw, raw_json, dedupe_key
+            ) VALUES (
+                :id, :source_platform, :source_id, :source_url, :community, :author_id, :author_name,
+                :author_avatar, :level, :tag, :caption, :meme_label, :bg, :accent, :asset_url, :thumbnail_url,
+                :media_type, :template, :source_label, :created_at, :external_laugh, :external_comments,
+                :external_shares, :nsfw, :raw_json, :dedupe_key
+            )
+            ON CONFLICT(source_platform, source_id) DO UPDATE SET
+                author_id = excluded.author_id,
+                author_name = excluded.author_name,
+                author_avatar = excluded.author_avatar,
+                level = excluded.level,
+                tag = excluded.tag,
+                caption = excluded.caption,
+                meme_label = excluded.meme_label,
+                bg = excluded.bg,
+                accent = excluded.accent,
+                asset_url = excluded.asset_url,
+                thumbnail_url = excluded.thumbnail_url,
+                media_type = excluded.media_type,
+                template = excluded.template,
+                source_label = excluded.source_label,
+                created_at = excluded.created_at,
+                external_laugh = excluded.external_laugh,
+                external_comments = excluded.external_comments,
+                external_shares = excluded.external_shares,
+                raw_json = excluded.raw_json
+            """,
+            post_row,
         )
 
 
@@ -1005,6 +1087,54 @@ def clean_text(value: str | None) -> str:
     return text
 
 
+def clamp_text(value: str | None, limit: int) -> str:
+    text = clean_text(value)
+    if len(text) <= limit:
+        return text
+    clipped = text[: max(0, limit - 1)].rstrip(" ,.;:!?，。；：！？、-")
+    return (clipped or text[:limit]).rstrip() + "…"
+
+
+def preview_caption(text: str | None, source_platform: str | None = None) -> str:
+    normalized = clean_text(text)
+    if not normalized:
+        return ""
+    limit = 42
+    if source_platform in {"meme-api", "lemmy"}:
+        limit = 88
+    parts = [segment.strip() for segment in re.split(r"[\n\r]+|(?<=[。！？!?])\s+", normalized) if segment.strip()]
+    preview = parts[0] if parts else normalized
+    if len(preview) > limit:
+        return clamp_text(preview, limit)
+    if len(normalized) > len(preview):
+        return clamp_text(preview + " " + (parts[1] if len(parts) > 1 else ""), limit)
+    return preview
+
+
+def short_source_label(source_platform: str | None, source_label: str | None, community: str | None = None) -> str:
+    if source_platform == "meme-api":
+        community_name = clean_text(community) or "memes"
+        return f"Reddit · r/{community_name}"[:28]
+    if source_platform == "lemmy":
+        community_name = clean_text(community) or clean_text(source_label) or "community"
+        return clamp_text(f"Lemmy · {community_name}", 28)
+    if source_platform == "builtin-animal":
+        return "内置动物梗图"
+    if source_platform == "local_image":
+        return clamp_text(clean_text(source_label) or "微信图素材", 20)
+    if source_platform == "memelab":
+        return "“梗”社区 Meme Community 原创"
+    return clamp_text(source_label or community or source_platform or "", 28)
+
+
+def prefer_natural_media_ratio(source_platform: str | None, source_url: str | None = None) -> bool:
+    if source_platform in {"meme-api", "lemmy"}:
+        return True
+    if source_url and re.search(r"\.(gif|webp)(\?|$)", source_url, flags=re.IGNORECASE):
+        return True
+    return False
+
+
 def avatar_from_seed(seed: str) -> str:
     avatars = ["🐶", "🫠", "🐒", "🍯", "🐸", "😮‍💨", "🤡", "🧠", "📎", "🎒", "☕", "😼"]
     return avatars[stable_int(seed) % len(avatars)]
@@ -1129,7 +1259,11 @@ def normalize_lemmy_posts() -> list[dict]:
                 continue
             title = clean_text(post.get("name"))
             body = clean_text(post.get("body"))
-            caption = body or title or "社区热帖"
+            caption = title or body or "社区热帖"
+            if title and body:
+                caption = clamp_text(f"{title} {body}", 180)
+            else:
+                caption = clamp_text(caption, 180)
             accent = infer_accent("lemmy:" + source_id)
             author_name = clean_text(creator.get("display_name") or creator.get("name")) or "匿名梗友"
             normalized.append(
@@ -1284,6 +1418,9 @@ def community_post_payload(
     liked_post_ids = liked_post_ids or set()
     favored_post_ids = favored_post_ids or set()
     following_user_ids = following_user_ids or set()
+    full_caption = row["caption"] or ""
+    source_platform = row["source_platform"]
+    source_label = row["source_label"] or row["community"] or row["source_platform"]
     return {
         "id": row["id"],
         "authorId": row["author_id"],
@@ -1291,7 +1428,8 @@ def community_post_payload(
         "avatar": row["author_avatar"] or "🐶",
         "level": row["level"] or "🥇 黄金梗师",
         "tag": row["tag"] or "🔥 今日热梗",
-        "caption": row["caption"] or "",
+        "caption": full_caption,
+        "captionPreview": preview_caption(full_caption, source_platform),
         "memeLabel": row["meme_label"] or "",
         "bg": row["bg"] or ACCENT_COLORS["purple"][0],
         "accent": row["accent"] or "purple",
@@ -1305,11 +1443,13 @@ def community_post_payload(
         "thumbnailUrl": row["thumbnail_url"],
         "createdAt": row["created_at"],
         "time": format_relative_time(row["created_at"] or now_local().isoformat()),
-        "source": row["source_platform"],
-        "sourceLabel": row["source_label"] or row["community"] or row["source_platform"],
+        "source": source_platform,
+        "sourceLabel": source_label,
+        "sourceLabelShort": short_source_label(source_platform, source_label, row["community"]),
         "community": row["community"],
         "sourceUrl": row["source_url"],
         "mediaType": row["media_type"] or "image",
+        "preferNaturalMediaRatio": prefer_natural_media_ratio(source_platform, row["source_url"]),
         "laughed": row["id"] in liked_post_ids,
         "favored": row["id"] in favored_post_ids,
         "mine": row["author_id"] == COMMUNITY_ME_USER_ID,
@@ -1340,7 +1480,7 @@ def list_community_posts(tag: str | None = None, view: str = "all") -> list[dict
         elif view == "mine":
             sql.append("AND author_id = ?")
             params.append(COMMUNITY_ME_USER_ID)
-        sql.append("ORDER BY datetime(created_at) DESC")
+        sql.append("ORDER BY CASE WHEN source_platform IN ('builtin-seed', 'builtin-animal') THEN 0 ELSE 1 END, datetime(created_at) DESC")
         rows = conn.execute("\n".join(sql), params).fetchall()
         return [community_post_payload(row, liked_post_ids, favored_post_ids, following_user_ids) for row in rows]
 
@@ -1667,7 +1807,7 @@ def insert_generated_post(profile: dict, meme: dict) -> dict:
         "source_platform": "memelab",
         "source_id": post_id,
         "source_url": "",
-        "community": "造梗局原创",
+        "community": "“梗”社区 Meme Community 原创",
         "author_id": COMMUNITY_ME_USER_ID,
         "author_name": profile.get("userName", "梗员01"),
         "author_avatar": profile.get("avatar", "🐶"),
@@ -1681,7 +1821,7 @@ def insert_generated_post(profile: dict, meme: dict) -> dict:
         "thumbnail_url": meme.get("assetPath"),
         "media_type": "image",
         "template": meme["template"].get("name", "新模板"),
-        "source_label": "造梗局原创",
+        "source_label": "“梗”社区 Meme Community 原创",
         "created_at": now_local().isoformat(timespec="seconds"),
         "external_laugh": 0,
         "external_comments": 0,
@@ -1891,7 +2031,7 @@ def build_toxic_king_system_prompt(persona_key: str) -> str:
     samples = "\n".join([f"用户：{s['user']}\n梗王：{s['bot']}" for s in persona.get("samples", [])])
     # Keep this prompt project-specific (梗社区) and "deep" in concept: role, goal, style, boundaries, output spec.
     return f"""
-你是「{persona['name']}」，来自一个中文梗社区「造梗局」的虚拟人物。
+你是「{persona['name']}」，来自一个中文梗社区「“梗”社区 Meme Community」的虚拟人物。
 
 核心目标（项目深度概念）：
 1) 你是“梗王”，职责不是安慰鸡汤，而是用梗和毒舌把用户从情绪泥潭里拎出来，让对话有冲击力、有节奏、有梗感。
@@ -2626,7 +2766,7 @@ def compose_generated_image(
     draw.rounded_rectangle((42, 40, 42 + 276, 40 + 58), radius=24, fill=(12, 12, 12, 145))
     draw.text((66, 54), badge_text, font=chip_font, fill=(255, 255, 255, 255))
     draw.text((56, 960), subtitle[:38], font=meta_font, fill=(255, 255, 255, 210))
-    draw.text((698, 962), "造梗局 · 程序贴字合成", font=watermark_font, fill=(255, 255, 255, 180))
+    draw.text((598, 962), "“梗”社区 Meme Community", font=watermark_font, fill=(255, 255, 255, 180))
 
     composed = composed.convert("RGB")
     composed.save(path, format="PNG", optimize=True)
@@ -3062,7 +3202,7 @@ class MemelabHandler(SimpleHTTPRequestHandler):
             return self.send_json(
                 {
                     "downloadUrl": meme.get("assetPath"),
-                    "shareText": f"我在造梗局做了一张新梗图：{meme.get('text')}",
+                    "shareText": f"我在“梗”社区 Meme Community 做了一张新梗图：{meme.get('text')}",
                 }
             )
 
