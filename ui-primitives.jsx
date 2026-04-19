@@ -123,7 +123,53 @@ function LevelTag({ level }) {
   );
 }
 
-function MemePlaceholder({ label, aspect = '1/1', bg }) {
+function MemePlaceholder({ label, aspect = '1/1', bg, imageUrl }) {
+  // 如果有真实图片URL，显示图片
+  if (imageUrl) {
+    const fullUrl = window.MemeLabAPI && window.MemeLabAPI.assetUrl
+      ? window.MemeLabAPI.assetUrl(imageUrl)
+      : imageUrl;
+    return (
+      <div style={{
+        aspectRatio: aspect,
+        background: bg || '#F5F5F5',
+        overflow: 'hidden',
+        position: 'relative',
+      }}>
+        <img
+          src={fullUrl}
+          alt={label || '梗图'}
+          style={{
+            width: '100%',
+            height: '100%',
+            objectFit: 'cover',
+          }}
+          onError={(e) => {
+            // 图片加载失败时显示占位符
+            e.target.style.display = 'none';
+            e.target.parentElement.querySelector('.fallback-label').style.display = 'flex';
+          }}
+        />
+        <div className="fallback-label" style={{
+          display: 'none',
+          position: 'absolute',
+          inset: 0,
+          alignItems: 'center',
+          justifyContent: 'center',
+          background: bg || '#F5F5F5',
+        }}>
+          <div style={{
+            fontSize: 12,
+            color: '#888',
+            textAlign: 'center',
+            whiteSpace: 'pre-line',
+            maxWidth: '80%',
+          }}>{label || '图片加载失败'}</div>
+        </div>
+      </div>
+    );
+  }
+  // 否则显示占位符
   return (
     <div className="meme-placeholder" style={{
       aspectRatio: aspect,

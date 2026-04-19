@@ -2,9 +2,36 @@
 
 function Plaza({ onPointGain, onOpenGen }) {
   const [filter, setFilter] = React.useState('all');
-  const [posts, setPosts] = React.useState(SEED_POSTS);
+  const [posts, setPosts] = React.useState([]);
+  const [loading, setLoading] = React.useState(true);
   const [detailPost, setDetailPost] = React.useState(null);
   const [showSheet, setShowSheet] = React.useState(false);
+
+  // 从后端API加载帖子数据（包括动物梗图）
+  React.useEffect(() => {
+    async function loadPosts() {
+      setLoading(true);
+      try {
+        if (window.MemeLabAPI && window.MemeLabAPI.getPosts) {
+          const data = await window.MemeLabAPI.getPosts(null, 'all');
+          if (data && data.posts && data.posts.length > 0) {
+            setPosts(data.posts);
+          } else {
+            // 如果API返回空数据，使用本地SEED_POSTS
+            setPosts(SEED_POSTS);
+          }
+        } else {
+          // API不可用时使用本地数据
+          setPosts(SEED_POSTS);
+        }
+      } catch (e) {
+        console.log('加载帖子失败，使用本地数据:', e);
+        setPosts(SEED_POSTS);
+      }
+      setLoading(false);
+    }
+    loadPosts();
+  }, []);
 
   const filters = [
     { key: 'all', label: '全部' },
@@ -51,9 +78,21 @@ function Plaza({ onPointGain, onOpenGen }) {
         padding: '4px 16px 120px',
         display: 'flex', flexDirection: 'column', gap: 14,
       }}>
-        {visible.map(p => (
-          <PostCard key={p.id} post={p} onLaugh={() => laugh(p.id)} onOpenDetail={() => setDetailPost(p)}/>
-        ))}
+        {loading ? (
+          <div style={{ textAlign: 'center', padding: 40, color: '#888' }}>
+            <div style={{ fontSize: 24, marginBottom: 12 }}>🔥</div>
+            <div style={{ fontSize: 14 }}>加载梗图中...</div>
+          </div>
+        ) : visible.length === 0 ? (
+          <div style={{ textAlign: 'center', padding: 40, color: '#888' }}>
+            <div style={{ fontSize: 24, marginBottom: 12 }}>🎭</div>
+            <div style={{ fontSize: 14 }}>暂无梗图</div>
+          </div>
+        ) : (
+          visible.map(p => (
+            <PostCard key={p.id} post={p} onLaugh={() => laugh(p.id)} onOpenDetail={() => setDetailPost(p)}/>
+          ))
+        )}
       </div>
 
       {/* floating CTA */}
@@ -71,6 +110,15 @@ function Plaza({ onPointGain, onOpenGen }) {
 }
 
 function PostCard({ post, onLaugh, onOpenDetail }) {
+  // 处理API返回数据与本地数据的字段差异
+  const authorName = post.author || post.author_name || '匿名';
+  const authorAvatar = post.avatar || post.author_avatar || '🎭';
+  const postLevel = post.level || '🥈 白银梗手';
+  const postTag = post.tag || '🔥 今日热梗';
+  const postTime = post.time || '刚刚';
+  const postBg = post.bg || '#F5F5F5';
+  const postAccent = post.accent || 'amber';
+
   return (
     <div className="pop-in" style={{
       background: '#fff', borderRadius: 20, overflow: 'hidden',
@@ -80,23 +128,28 @@ function PostCard({ post, onLaugh, onOpenDetail }) {
       <div style={{ padding: '12px 14px', display: 'flex', alignItems: 'center', gap: 10 }}>
         <div style={{
           width: 36, height: 36, borderRadius: '50%',
-          background: post.bg, display: 'flex', alignItems: 'center', justifyContent: 'center',
+          background: postBg, display: 'flex', alignItems: 'center', justifyContent: 'center',
           fontSize: 20,
-        }}>{post.avatar}</div>
+        }}>{authorAvatar}</div>
         <div style={{ flex: 1, minWidth: 0 }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-            <div style={{ fontSize: 13, fontWeight: 700 }}>@{post.author}</div>
-            <LevelTag level={post.level}/>
+            <div style={{ fontSize: 13, fontWeight: 700 }}>@{authorName}</div>
+            <LevelTag level={postLevel}/>
           </div>
           <div style={{ fontSize: 11, color: '#888', marginTop: 2, display: 'flex', gap: 6 }}>
-            <Badge accent={post.accent}>{post.tag}</Badge>
-            <span>· {post.time}</span>
+            <Badge accent={postAccent}>{postTag}</Badge>
+            <span>· {postTime}</span>
           </div>
         </div>
       </div>
 
       {/* meme image */}
-      <MemePlaceholder label={post.memeLabel} aspect="1/1" bg={post.bg}/>
+      <MemePlaceholder
+        label={post.memeLabel || post.meme_label || '梗图'}
+        aspect="1/1"
+        bg={postBg}
+        imageUrl={post.assetPath || post.thumbnailUrl || post.asset_url || post.thumbnail_url}
+      />
 
       {/* caption */}
       <div style={{ padding: '12px 16px 10px', fontSize: 14, lineHeight: 1.55, whiteSpace: 'pre-line' }}>
@@ -105,10 +158,10 @@ function PostCard({ post, onLaugh, onOpenDetail }) {
 
       {/* actions */}
       <div style={{ display: 'flex', borderTop: '1px solid #F0F0F0' }}>
-        <ActionBtn icon="😂" label={post.stats.laugh} active={post.laughed} onClick={onLaugh}/>
+        <ActionBtn icon="😂" label={post.stats?.laugh || 0} active={post.laughed} onClick={onLaugh}/>
         <ActionBtn icon="💬" label="用梗评" onClick={onOpenDetail}/>
         <ActionBtn icon="🎨" label="二创"/>
-        <ActionBtn icon="♡" label={post.stats.shares}/>
+        <ActionBtn icon="♡" label={post.stats?.shares || 0}/>
       </div>
     </div>
   );
